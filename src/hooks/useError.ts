@@ -5,6 +5,7 @@ import { parseApiError } from "@/lib/errors";
 export interface UseErrorReturn {
   showError: (message: string, duration?: number) => void;
   showSuccess: (message: string, duration?: number) => void;
+  showWarning: (message: string, duration?: number) => void;
   showApiError: (err: unknown, override?: Partial<Record<number, string>>) => void;
 }
 
@@ -17,6 +18,10 @@ export function useError(): UseErrorReturn {
     toast.success(message, duration !== undefined ? { duration } : undefined);
   }, []);
 
+  const showWarning = useCallback((message: string, duration?: number) => {
+    toast.warning(message, duration !== undefined ? { duration } : undefined);
+  }, []);
+
   const showApiError = useCallback(
     (err: unknown, override?: Partial<Record<number, string>>) => {
       const parsed = parseApiError(err);
@@ -26,5 +31,5 @@ export function useError(): UseErrorReturn {
     [],
   );
 
-  return { showError, showSuccess, showApiError };
+  return { showError, showSuccess, showWarning, showApiError };
 }

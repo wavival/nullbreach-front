@@ -2,7 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { Layout } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import { Toaster } from "@/components/ui/toaster";
+import { ToastViewport } from "@/components/ui/Toast";
+import { WhatsAppButton } from "@/components/ui/WhatsAppButton";
 import { Login } from "@/pages/Login";
 import { Home } from "@/pages/Home";
 import { Chat } from "@/pages/Chat";
@@ -12,7 +13,8 @@ import { NotFound } from "@/pages/NotFound";
 export default function App() {
   return (
     <AuthProvider>
-      <Toaster />
+      <ToastViewport />
+      <WhatsAppButton />
       <Routes>
         {/* Public, no Layout */}
         <Route path="/login" element={<Login />} />

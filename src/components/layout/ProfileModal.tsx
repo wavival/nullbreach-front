@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, LogOut, Mail, Trash2, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
+import { Camera, LogOut, Mail, Trash, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import { profileStore } from "@/services/profileStore";
-import type { User } from "@/types/auth";
 
 interface ProfileModalProps {
-  user: User;
   onClose: () => void;
-  onLogout: () => void;
 }
 
 const MAX_AVATAR_BYTES = 512 * 1024;
@@ -19,14 +19,14 @@ function formatDate(iso: string | undefined | null): string {
   return d.toLocaleString();
 }
 
-export function ProfileModal({ user, onClose, onLogout }: ProfileModalProps) {
+export function ProfileModal({ onClose }: ProfileModalProps) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [avatar, setAvatar] = useState<string | null>(() =>
-    profileStore.getAvatar(user.email),
+    user ? profileStore.getAvatar(user.email) : null,
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const lastLogin = profileStore.getLastLogin(user.email);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -36,7 +36,21 @@ export function ProfileModal({ user, onClose, onLogout }: ProfileModalProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!user) return null;
+  if (typeof document === "undefined") return null;
+
+  const lastLogin = profileStore.getLastLogin(user.email);
+
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!user) return;
     const file = e.target.files?.[0];
     e.target.value = "";
     setUploadError(null);
@@ -64,15 +78,22 @@ export function ProfileModal({ user, onClose, onLogout }: ProfileModalProps) {
   }
 
   function clearAvatar() {
+    if (!user) return;
     profileStore.clearAvatar(user.email);
     setAvatar(null);
     setUploadError(null);
   }
 
+  function handleLogout() {
+    onClose();
+    logout();
+    navigate("/login", { replace: true });
+  }
+
   const initial = (user.email || "?").trim().charAt(0).toUpperCase();
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-lg">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-lg">
       <button
         type="button"
         aria-label="Cerrar"
@@ -84,7 +105,7 @@ export function ProfileModal({ user, onClose, onLogout }: ProfileModalProps) {
         aria-modal="true"
         aria-labelledby="profile-modal-title"
         className={cn(
-          "relative z-10 w-full max-w-[440px]",
+          "relative z-10 w-full max-w-[400px]",
           "rounded border border-border/70",
           "bg-surface-alt/90 backdrop-blur-xl shadow-large",
           "p-xl animate-card-in",
@@ -170,7 +191,7 @@ export function ProfileModal({ user, onClose, onLogout }: ProfileModalProps) {
                   "hover:underline underline-offset-2 transition-colors",
                 )}
               >
-                <Trash2 className="size-3.5" />
+                <Trash className="size-3.5" />
                 Quitar avatar
               </button>
             )}
@@ -218,7 +239,7 @@ export function ProfileModal({ user, onClose, onLogout }: ProfileModalProps) {
           </button>
           <button
             type="button"
-            onClick={onLogout}
+            onClick={handleLogout}
             className={cn(
               "h-10 px-lg rounded text-body font-medium",
               "inline-flex items-center gap-sm",
@@ -234,7 +255,8 @@ export function ProfileModal({ user, onClose, onLogout }: ProfileModalProps) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

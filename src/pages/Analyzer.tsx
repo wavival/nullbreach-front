@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
-  Code2,
+  ChevronDown,
+  Code,
   Loader2,
   ShieldCheck,
   Sparkles,
@@ -49,6 +50,20 @@ const LANGUAGES = [
 
 type Language = (typeof LANGUAGES)[number];
 
+const LANGUAGE_META: Record<Language, { label: string; icon: string }> = {
+  auto: { label: "Auto-detect", icon: "✨" },
+  python: { label: "Python", icon: "🐍" },
+  javascript: { label: "JavaScript", icon: "📜" },
+  typescript: { label: "TypeScript", icon: "📘" },
+  go: { label: "Go", icon: "🔷" },
+  java: { label: "Java", icon: "☕" },
+  c: { label: "C", icon: "⚙️" },
+  cpp: { label: "C++", icon: "⚙️" },
+  rust: { label: "Rust", icon: "🦀" },
+  php: { label: "PHP", icon: "🐘" },
+  ruby: { label: "Ruby", icon: "💎" },
+};
+
 const SEVERITY_CLASSES: Record<Severity, string> = {
   critical: "border-severity-critical text-severity-critical bg-severity-critical/10",
   high: "border-severity-high text-severity-high bg-severity-high/10",
@@ -79,7 +94,7 @@ export function Analyzer() {
     setResult(null);
     try {
       const data = await request<AnalyzeResponse>({
-        url: "/analyzer/analyze/",
+        url: "/analyzer/scan/",
         method: "POST",
         data: {
           code: trimmed,
@@ -131,28 +146,14 @@ export function Analyzer() {
             htmlFor="analyzer-code"
             className="text-body font-medium text-foreground flex items-center gap-sm"
           >
-            <Code2 className="size-4 text-primary" />
+            <Code className="size-4 text-primary" />
             Código fuente
           </label>
-          <select
+          <LanguageSelect
             value={language}
-            onChange={(e) => setLanguage(e.target.value as Language)}
+            onChange={setLanguage}
             disabled={loading}
-            aria-label="Lenguaje"
-            className={cn(
-              "h-9 rounded px-sm bg-surface border border-border",
-              "text-body-sm text-foreground",
-              "focus:outline-none focus:border-primary",
-              "transition-colors duration-hover ease-hover",
-              "disabled:opacity-60 disabled:cursor-not-allowed",
-            )}
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l} value={l}>
-                {l === "auto" ? "Auto-detect" : l}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         <textarea
@@ -229,6 +230,182 @@ export function Analyzer() {
 }
 
 /* ------------------------------------------------------------------ */
+
+interface LanguageSelectProps {
+  value: Language;
+  onChange: (next: Language) => void;
+  disabled?: boolean;
+}
+
+function LanguageSelect({ value, onChange, disabled }: LanguageSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState<number>(() =>
+    LANGUAGES.indexOf(value),
+  );
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const triggerId = "analyzer-language-trigger";
+  const listId = "analyzer-language-list";
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const idx = LANGUAGES.indexOf(value);
+    setActiveIdx(idx >= 0 ? idx : 0);
+  }, [open, value]);
+
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>(
+      `[data-idx="${activeIdx}"]`,
+    );
+    el?.scrollIntoView({ block: "nearest" });
+  }, [open, activeIdx]);
+
+  function commit(next: Language) {
+    onChange(next);
+    setOpen(false);
+  }
+
+  function onTriggerKey(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (disabled) return;
+    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      setOpen(true);
+    }
+  }
+
+  function onListKey(e: React.KeyboardEvent<HTMLUListElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((i) => (i + 1) % LANGUAGES.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((i) => (i - 1 + LANGUAGES.length) % LANGUAGES.length);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActiveIdx(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActiveIdx(LANGUAGES.length - 1);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      const next = LANGUAGES[activeIdx];
+      if (next) commit(next);
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
+  }
+
+  const meta = LANGUAGE_META[value];
+
+  return (
+    <div ref={rootRef} className="relative w-full sm:w-auto">
+      <button
+        type="button"
+        id={triggerId}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-label="Lenguaje"
+        onClick={() => !disabled && setOpen((o) => !o)}
+        onKeyDown={onTriggerKey}
+        className={cn(
+          "w-full sm:w-[200px] inline-flex items-center justify-between gap-sm",
+          "rounded text-body text-foreground",
+          "border bg-surface-alt",
+          "transition-all duration-hover ease-hover",
+          "cursor-pointer",
+          "focus:outline-none",
+          open
+            ? "border-primary shadow-[0_0_0_4px_rgba(34,197,94,0.18)]"
+            : "border-border hover:border-neutral hover:bg-surface",
+          "focus-visible:border-primary focus-visible:shadow-[0_0_0_4px_rgba(34,197,94,0.18)]",
+          "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:bg-surface-alt",
+        )}
+        style={{ padding: "10px 12px" }}
+      >
+        <span className="inline-flex items-center gap-sm min-w-0">
+          <span aria-hidden="true" className="text-base leading-none">
+            {meta.icon}
+          </span>
+          <span className="truncate">{meta.label}</span>
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "size-4 shrink-0 text-foreground-muted",
+            "transition-transform duration-hover ease-hover",
+            open && "rotate-180 text-primary",
+          )}
+        />
+      </button>
+
+      {open && (
+        <ul
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          tabIndex={-1}
+          aria-labelledby={triggerId}
+          aria-activedescendant={`${listId}-opt-${activeIdx}`}
+          onKeyDown={onListKey}
+          className={cn(
+            "absolute z-50 mt-xs w-full sm:w-[220px] left-0",
+            "rounded border border-border bg-surface-alt shadow-medium",
+            "py-xs max-h-[280px] overflow-y-auto",
+            "animate-fade-in focus:outline-none",
+          )}
+        >
+          {LANGUAGES.map((lang, idx) => {
+            const m = LANGUAGE_META[lang];
+            const selected = lang === value;
+            const active = idx === activeIdx;
+            return (
+              <li
+                key={lang}
+                id={`${listId}-opt-${idx}`}
+                role="option"
+                aria-selected={selected}
+                data-idx={idx}
+                onMouseEnter={() => setActiveIdx(idx)}
+                onClick={() => commit(lang)}
+                className={cn(
+                  "flex items-center gap-sm px-md py-sm cursor-pointer",
+                  "text-body text-foreground",
+                  "transition-colors duration-hover ease-hover",
+                  active && "bg-border",
+                  selected && "text-primary font-medium",
+                )}
+              >
+                <span aria-hidden="true" className="text-base leading-none">
+                  {m.icon}
+                </span>
+                <span className="truncate">{m.label}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function LoadingPanel() {
   return (

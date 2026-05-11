@@ -6,6 +6,8 @@ import { z } from "zod";
 import {
   AlertCircle,
   CheckCircle2,
+  Eye,
+  EyeOff,
   Loader2,
   Lock,
   Mail,
@@ -14,7 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { formatApiError, parseApiError } from "@/lib/errors";
+import { parseApiError } from "@/lib/errors";
 import { useError } from "@/hooks/useError";
 
 /* ------------------------------------------------------------------ */
@@ -290,6 +292,9 @@ function FloatingField<TForm extends Record<string, unknown>>({
   delay = 0,
 }: FloatingFieldProps<TForm>) {
   const errorId = `${id}-error`;
+  const isPassword = type === "password";
+  const [reveal, setReveal] = useState(false);
+  const effectiveType = isPassword ? (reveal ? "text" : "password") : type;
   return (
     <div
       className="animate-fade-in-up"
@@ -298,7 +303,7 @@ function FloatingField<TForm extends Record<string, unknown>>({
       <div className="relative">
         <input
           id={id}
-          type={type}
+          type={effectiveType}
           autoComplete={autoComplete}
           placeholder=" "
           aria-invalid={!!error || undefined}
@@ -307,7 +312,8 @@ function FloatingField<TForm extends Record<string, unknown>>({
           className={cn(
             "peer h-14 w-full rounded",
             "bg-surface/40 backdrop-blur-sm",
-            "pl-10 pr-3 pt-5 pb-1 text-body text-foreground",
+            "pl-10 pt-5 pb-1 text-body text-foreground",
+            isPassword ? "pr-11" : "pr-3",
             "border placeholder-transparent",
             "transition-all duration-hover ease-hover",
             "focus:outline-none focus:bg-surface/70",
@@ -344,6 +350,29 @@ function FloatingField<TForm extends Record<string, unknown>>({
               : "text-foreground-muted peer-focus:text-primary",
           )}
         />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setReveal((v) => !v)}
+            aria-label={reveal ? "Ocultar contraseña" : "Mostrar contraseña"}
+            aria-pressed={reveal}
+            tabIndex={0}
+            className={cn(
+              "absolute right-3 top-1/2 -translate-y-1/2",
+              "inline-flex items-center justify-center",
+              "size-8 rounded cursor-pointer",
+              "text-secondary hover:text-primary",
+              "transition-colors duration-hover ease-hover",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            )}
+          >
+            {reveal ? (
+              <EyeOff className="size-5" aria-hidden="true" />
+            ) : (
+              <Eye className="size-5" aria-hidden="true" />
+            )}
+          </button>
+        )}
       </div>
       {error && (
         <p

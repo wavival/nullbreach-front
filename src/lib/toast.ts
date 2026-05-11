@@ -1,52 +1,32 @@
-export type ToastVariant = "error" | "success" | "info" | "warning";
+import { showError, showSuccess, showWarning } from "@/components/ui/Toast";
+import { toast as hotToast } from "react-hot-toast";
 
-export interface ToastPayload {
-  id: number;
-  variant: ToastVariant;
-  title?: string;
-  message: string;
-  duration: number;
-}
+export type ToastVariant = "error" | "success" | "info" | "warning";
 
 export interface ToastOptions {
   title?: string;
   duration?: number;
 }
 
-type Listener = (t: ToastPayload) => void;
-
-const DEFAULT_DURATION = 4000;
-const listeners = new Set<Listener>();
-let counter = 1;
-
-function emit(
-  variant: ToastVariant,
-  message: string,
-  opts?: ToastOptions,
-): void {
-  if (!message) return;
-  const payload: ToastPayload = {
-    id: counter++,
-    variant,
-    message,
-    title: opts?.title,
-    duration: opts?.duration ?? DEFAULT_DURATION,
-  };
-  listeners.forEach((l) => l(payload));
+function withTitle(message: string, title?: string): string {
+  return title ? `${title}\n${message}` : message;
 }
 
 export const toast = {
-  emit,
-  error: (message: string, opts?: ToastOptions) => emit("error", message, opts),
-  success: (message: string, opts?: ToastOptions) =>
-    emit("success", message, opts),
-  info: (message: string, opts?: ToastOptions) => emit("info", message, opts),
-  warning: (message: string, opts?: ToastOptions) =>
-    emit("warning", message, opts),
-  subscribe(listener: Listener): () => void {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  },
+  error: (message: string, opts?: ToastOptions): string =>
+    showError(withTitle(message, opts?.title), opts?.duration),
+  success: (message: string, opts?: ToastOptions): string =>
+    showSuccess(withTitle(message, opts?.title), opts?.duration),
+  warning: (message: string, opts?: ToastOptions): string =>
+    showWarning(withTitle(message, opts?.title), opts?.duration),
+  info: (message: string, opts?: ToastOptions): string =>
+    hotToast(withTitle(message, opts?.title), {
+      duration: opts?.duration ?? 3000,
+      style: {
+        background: "#1E293B",
+        color: "#F1F5F9",
+        border: "1px solid #3B82F6",
+      },
+    }),
+  dismiss: (id?: string): void => hotToast.dismiss(id),
 };

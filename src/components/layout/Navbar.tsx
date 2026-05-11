@@ -60,16 +60,16 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
   const initial = (user?.email || "?").trim().charAt(0).toUpperCase();
 
   return (
-    <header className="relative z-50 h-navbar w-full border-b border-border bg-surface">
-      <div className="h-full flex items-center justify-between px-lg md:px-xl gap-lg">
+    <header className="relative z-50 h-14 md:h-navbar w-full border-b border-border bg-surface">
+      <div className="h-full flex items-center justify-between px-md md:px-lg lg:px-xl gap-md md:gap-lg">
         <div className="flex items-center gap-md">
           {isAuthenticated && onToggleSidebar && (
             <Button
               variant="ghost"
               size="icon"
               onClick={onToggleSidebar}
-              className="md:hidden"
               aria-label="Toggle sidebar"
+              className="[&_svg]:size-6"
             >
               <Menu />
             </Button>
@@ -99,8 +99,13 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
                 aria-expanded={menuOpen}
               >
                 <Avatar avatar={avatar} initial={initial} size={32} />
-                <span className="hidden md:inline max-w-[180px] truncate">
-                  {user?.email ?? "Account"}
+                <span className="hidden md:inline-flex items-baseline gap-xs max-w-[260px] truncate">
+                  <span className="text-foreground-muted text-body-sm">
+                    Signed in as:
+                  </span>
+                  <span className="truncate text-foreground">
+                    {user?.email ?? "Account"}
+                  </span>
                 </span>
                 <ChevronDown
                   className={cn(
@@ -152,12 +157,8 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
         </div>
       </div>
 
-      {profileOpen && user && (
-        <ProfileModal
-          user={user}
-          onClose={() => setProfileOpen(false)}
-          onLogout={handleLogout}
-        />
+      {profileOpen && (
+        <ProfileModal onClose={() => setProfileOpen(false)} />
       )}
     </header>
   );

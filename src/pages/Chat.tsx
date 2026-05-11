@@ -14,11 +14,12 @@ import {
   Bot,
   Check,
   Loader2,
-  MessageSquarePlus,
-  Pencil,
+  Edit,
+  Menu,
+  Plus,
   Send,
   Sparkles,
-  Trash2,
+  Trash,
   User,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import { request } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { formatApiError, parseApiError } from "@/lib/errors";
 import { useError } from "@/hooks/useError";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Markdown } from "@/components/ui/markdown";
 import type {
   ChatMessage,
@@ -82,7 +84,7 @@ const GRID_BG: CSSProperties = {
 export function Chat() {
   const navigate = useNavigate();
   const { sessionId: routeSessionId } = useParams<{ sessionId?: string }>();
-  const { showError } = useError();
+  const { showError, showSuccess } = useError();
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -99,6 +101,9 @@ export function Chat() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [sessionsExpanded, setSessionsExpanded] = useState(true);
+  const isNarrow = useMediaQuery("(max-width: 1023px)");
+  const effectiveSessionsExpanded = isNarrow ? false : sessionsExpanded;
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -220,24 +225,40 @@ export function Chat() {
     }
   }, [deleteTarget, navigate, routeSessionId]);
 
-  const handleRename = useCallback(async (id: string, nextTitle: string) => {
-    const trimmed = nextTitle.trim();
-    setRenamingId(null);
-    if (trimmed.length === 0) return;
-    setSessions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, title: trimmed } : s)),
-    );
-    try {
-      const updated = await request<ChatSession>({
-        url: `/chat/sessions/${id}/`,
-        method: "PATCH",
-        data: { title: trimmed },
-      });
-      setSessions((prev) => prev.map((s) => (s.id === id ? updated : s)));
-    } catch (err) {
-      setSessionsError(formatApiError(err));
-    }
-  }, []);
+  const handleRename = useCallback(
+    async (id: string, nextTitle: string) => {
+      const trimmed = nextTitle.trim();
+      setRenamingId(null);
+      if (trimmed.length === 0) return;
+      const prevTitle =
+        sessions.find((s) => s.id === id)?.title ?? "";
+      setSessions((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, title: trimmed } : s)),
+      );
+      try {
+        const updated = await request<ChatSession>({
+          url: `/chat/sessions/${id}/`,
+          method: "PATCH",
+          data: { title: trimmed },
+          silent: true,
+        });
+        setSessions((prev) => prev.map((s) => (s.id === id ? updated : s)));
+        showSuccess("Título actualizado");
+      } catch (err) {
+        setSessions((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, title: prevTitle } : s)),
+        );
+        const parsed = parseApiError(err);
+        const friendly =
+          parsed.status === 404
+            ? "Sesión no encontrada"
+            : "Error actualizando título";
+        setSessionsError(friendly);
+        showError(friendly);
+      }
+    },
+    [sessions, showError, showSuccess],
+  );
 
   const handleSend = useCallback(
     async (content: string) => {
@@ -345,7 +366,7 @@ export function Chat() {
 
   return (
     <div className="h-full">
-      <div className="relative h-[calc(100vh-theme(spacing.navbar))] w-full overflow-hidden bg-gradient-to-br from-surface via-surface to-surface-alt">
+      <div className="relative h-full min-h-[480px] w-full overflow-hidden bg-gradient-to-br from-surface via-surface to-surface-alt">
         {/* Backgrounds */}
         <div
           aria-hidden="true"
@@ -377,6 +398,8 @@ export function Chat() {
             onStartRename={(id) => setRenamingId(id)}
             onCancelRename={() => setRenamingId(null)}
             onCommitRename={handleRename}
+            expanded={effectiveSessionsExpanded}
+            onToggle={isNarrow ? undefined : () => setSessionsExpanded((v) => !v)}
           />
 
           {/* Sessions sidebar drawer (mobile) */}
@@ -416,18 +439,18 @@ export function Chat() {
               onCancelRename={() => setRenamingId(null)}
               onCommitRename={handleRename}
               onCloseDrawer={() => setDrawerOpen(false)}
+              expanded
             />
           </div>
 
           {/* Chat column */}
-          <section className="flex min-w-0 flex-1 flex-col">
+          <section className="flex min-w-0 md:min-w-[500px] lg:min-w-[600px] flex-1 flex-col">
             <ChatHeader
               title={displayedTitle}
               hasSession={!!activeSession}
+              sessionId={activeSession?.id ?? null}
               onOpenDrawer={() => setDrawerOpen(true)}
-              onRenameSession={() =>
-                activeSession && setRenamingId(activeSession.id)
-              }
+              onCommitRename={handleRename}
               onDeleteSession={() =>
                 activeSession && setDeleteTarget(activeSession)
               }
@@ -435,7 +458,7 @@ export function Chat() {
 
             <div
               ref={messagesScrollRef}
-              className="flex-1 overflow-y-auto px-md md:px-xl py-lg"
+              className="flex-1 overflow-y-auto px-md md:px-lg lg:px-xl py-md md:py-lg"
             >
               <div className="mx-auto flex w-full max-w-[860px] flex-col gap-lg">
                 {!activeSession && !routeSessionId && <EmptyState />}
@@ -517,6 +540,8 @@ interface SessionsSidebarProps {
   onCancelRename: () => void;
   onCommitRename: (id: string, nextTitle: string) => void;
   onCloseDrawer?: () => void;
+  expanded: boolean;
+  onToggle?: () => void;
 }
 
 function SessionsSidebar({
@@ -534,28 +559,45 @@ function SessionsSidebar({
   onCancelRename,
   onCommitRename,
   onCloseDrawer,
+  expanded,
+  onToggle,
 }: SessionsSidebarProps) {
   return (
     <aside
       className={cn(
-        "w-[280px] shrink-0 flex-col",
+        "shrink-0 flex-col",
         "border-r border-border/70",
         "bg-surface-alt/40 backdrop-blur-xl",
+        "transition-[width] duration-300 ease-out",
+        expanded ? "w-[250px]" : "w-[60px]",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-sm px-lg py-md border-b border-border/70">
-        <div className="flex items-center gap-sm">
-          <Sparkles className="size-4 text-primary" />
-          <span className="font-headline text-h4 text-foreground">
-            Sesiones
-          </span>
-        </div>
-        <div className="flex items-center gap-xs">
+      <div
+        className={cn(
+          "flex items-center gap-sm border-b border-border/70 py-md",
+          expanded ? "px-lg justify-between" : "px-sm justify-center flex-col",
+        )}
+      >
+        {expanded && (
+          <div className="flex items-center gap-sm min-w-0">
+            <Sparkles className="size-4 text-primary shrink-0" />
+            <span className="font-headline text-h4 text-foreground truncate">
+              Sesiones
+            </span>
+          </div>
+        )}
+        <div
+          className={cn(
+            "flex items-center gap-xs",
+            expanded ? "" : "flex-col",
+          )}
+        >
           <button
             type="button"
             onClick={onNew}
             aria-label="Nueva conversación"
+            title={expanded ? undefined : "Nueva conversación"}
             className={cn(
               "size-9 inline-flex items-center justify-center rounded",
               "bg-primary text-primary-foreground",
@@ -565,8 +607,24 @@ function SessionsSidebar({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             )}
           >
-            <MessageSquarePlus className="size-4" />
+            <Plus className="size-4" />
           </button>
+          {onToggle && (
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label={expanded ? "Colapsar sesiones" : "Expandir sesiones"}
+              aria-expanded={expanded}
+              title={expanded ? "Colapsar" : "Expandir"}
+              className={cn(
+                "size-10 inline-flex items-center justify-center rounded",
+                "text-foreground-muted hover:text-foreground",
+                "hover:bg-surface/60 transition-colors duration-hover",
+              )}
+            >
+              <Menu className="size-6" />
+            </button>
+          )}
           {onCloseDrawer && (
             <button
               type="button"
@@ -602,7 +660,7 @@ function SessionsSidebar({
           </div>
         )}
 
-        {!loading && !error && sessions.length === 0 && (
+        {!loading && !error && sessions.length === 0 && expanded && (
           <div className="p-md text-body-sm text-foreground-muted">
             No hay conversaciones. Crea una con el botón +.
           </div>
@@ -618,7 +676,8 @@ function SessionsSidebar({
               <SessionItem
                 session={s}
                 active={activeId === s.id}
-                renaming={renamingId === s.id}
+                renaming={renamingId === s.id && expanded}
+                collapsed={!expanded}
                 onSelect={() => onSelect(s.id)}
                 onRequestDelete={() => onRequestDelete(s)}
                 onStartRename={() => onStartRename(s.id)}
@@ -641,6 +700,7 @@ interface SessionItemProps {
   session: ChatSession;
   active: boolean;
   renaming: boolean;
+  collapsed?: boolean;
   onSelect: () => void;
   onRequestDelete: () => void;
   onStartRename: () => void;
@@ -652,6 +712,7 @@ function SessionItem({
   session,
   active,
   renaming,
+  collapsed,
   onSelect,
   onRequestDelete,
   onStartRename,
@@ -669,6 +730,28 @@ function SessionItem({
       return () => clearTimeout(t);
     }
   }, [renaming, session.title]);
+
+  if (collapsed) {
+    const initial = display.trim().charAt(0).toUpperCase() || "•";
+    return (
+      <button
+        type="button"
+        onClick={onSelect}
+        title={display}
+        aria-label={display}
+        className={cn(
+          "w-full h-10 inline-flex items-center justify-center rounded border",
+          "transition-all duration-hover ease-hover",
+          active
+            ? "border-primary/60 bg-primary/10 text-primary"
+            : "border-transparent text-foreground hover:border-border hover:bg-surface/60",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/40",
+        )}
+      >
+        <span className="font-medium text-body-sm">{initial}</span>
+      </button>
+    );
+  }
 
   return (
     <div
@@ -766,7 +849,7 @@ function SessionItem({
               "hover:bg-secondary/15 transition-colors duration-hover",
             )}
           >
-            <Pencil className="size-3.5" />
+            <Edit className="size-3.5" />
           </button>
           <button
             type="button"
@@ -782,7 +865,7 @@ function SessionItem({
               "transition-all duration-hover ease-hover",
             )}
           >
-            <Trash2 className="size-3.5" />
+            <Trash className="size-3.5" />
           </button>
         </div>
       )}
@@ -797,63 +880,129 @@ function SessionItem({
 interface ChatHeaderProps {
   title: string | null;
   hasSession: boolean;
+  sessionId: string | null;
   onOpenDrawer: () => void;
-  onRenameSession: () => void;
+  onCommitRename: (id: string, nextTitle: string) => void;
   onDeleteSession: () => void;
 }
 
 function ChatHeader({
   title,
   hasSession,
+  sessionId,
   onOpenDrawer,
-  onRenameSession,
+  onCommitRename,
   onDeleteSession,
 }: ChatHeaderProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  function startEdit() {
+    if (!sessionId) return;
+    setDraft(title ?? "");
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  }
+
+  function commit() {
+    if (!sessionId || !editing) return;
+    const trimmed = draft.trim();
+    setEditing(false);
+    if (!trimmed || trimmed === (title ?? "").trim()) return;
+    onCommitRename(sessionId, trimmed);
+  }
+
+  function cancel() {
+    setEditing(false);
+    setDraft("");
+  }
+
   return (
     <header
       className={cn(
         "flex items-center justify-between gap-sm",
-        "px-md md:px-xl py-md",
+        "px-md md:px-lg lg:px-xl py-sm md:py-md",
         "border-b border-border/70",
         "bg-surface-alt/30 backdrop-blur-xl",
       )}
     >
-      <div className="flex min-w-0 items-center gap-sm">
+      <div className="flex min-w-0 items-center gap-sm flex-1">
         <button
           type="button"
           onClick={onOpenDrawer}
           aria-label="Abrir lista de sesiones"
           className={cn(
-            "md:hidden size-9 inline-flex items-center justify-center rounded",
+            "md:hidden size-10 inline-flex items-center justify-center rounded shrink-0",
             "border border-border/70 bg-surface/60",
             "text-foreground hover:bg-surface transition-colors duration-hover",
           )}
         >
-          <Sparkles className="size-4 text-primary" />
+          <Menu className="size-6" />
         </button>
-        <h2
-          className={cn(
-            "truncate font-headline text-h4 text-foreground",
-            !title && "text-foreground-muted",
-          )}
-        >
-          {title ?? "Nueva conversación"}
-        </h2>
+        {editing && hasSession ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancel();
+              }
+            }}
+            autoFocus
+            className={cn(
+              "flex-1 min-w-0 h-9 rounded px-sm",
+              "bg-surface/60 border border-primary/60",
+              "font-headline text-h4 text-foreground",
+              "focus:outline-none focus:shadow-[0_0_0_3px_rgba(34,197,94,0.18)]",
+            )}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={hasSession ? startEdit : undefined}
+            disabled={!hasSession}
+            title={hasSession ? "Editar título" : undefined}
+            className={cn(
+              "min-w-0 text-left rounded",
+              hasSession &&
+                "hover:bg-surface/40 transition-colors duration-hover px-xs -mx-xs cursor-text",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/40",
+            )}
+          >
+            <h2
+              className={cn(
+                "truncate font-headline text-h4 text-foreground",
+                !title && "text-foreground-muted",
+              )}
+            >
+              {title ?? "Nueva conversación"}
+            </h2>
+          </button>
+        )}
       </div>
 
       {hasSession && (
         <div className="flex items-center gap-xs">
           <button
             type="button"
-            onClick={onRenameSession}
-            aria-label="Renombrar sesión"
+            onClick={editing ? commit : startEdit}
+            aria-label={editing ? "Guardar título" : "Renombrar sesión"}
             className={cn(
               "size-9 inline-flex items-center justify-center rounded",
-              "text-foreground-muted hover:text-secondary",
-              "hover:bg-secondary/15 transition-colors duration-hover",
+              editing
+                ? "text-primary hover:bg-primary/15"
+                : "text-foreground-muted hover:text-secondary hover:bg-secondary/15",
+              "transition-colors duration-hover",
             )}
           >
-            <Pencil className="size-4" />
+            {editing ? <Check className="size-4" /> : <Edit className="size-4" />}
           </button>
           <button
             type="button"
@@ -865,7 +1014,7 @@ function ChatHeader({
               "hover:bg-error/15 transition-colors duration-hover",
             )}
           >
-            <Trash2 className="size-4" />
+            <Trash className="size-4" />
           </button>
         </div>
       )}
@@ -930,7 +1079,7 @@ function MessageBubble({ message }: MessageBubbleProps) {
 
       <div
         className={cn(
-          "max-w-[78%] flex flex-col gap-xs",
+          "max-w-[90vw] md:max-w-[78%] flex flex-col gap-xs",
           isUser ? "items-end" : "items-start",
         )}
       >
@@ -1106,7 +1255,7 @@ function ChatInput({ inputRef, disabled, onSend }: ChatInputProps) {
   const empty = value.trim().length === 0;
 
   return (
-    <div className="px-lg md:px-xl pb-lg pt-sm">
+    <div className="px-md md:px-lg lg:px-xl pb-md md:pb-lg pt-sm">
       <div className="mx-auto flex max-w-[860px] flex-col gap-md">
         <form
           onSubmit={(e) => {
@@ -1242,7 +1391,7 @@ function ConfirmModal({
       >
         <div className="flex items-start gap-sm mb-md">
           <div className="size-9 rounded-full bg-error/15 border border-error/40 flex items-center justify-center shrink-0">
-            <Trash2 className="size-4 text-error" />
+            <Trash className="size-4 text-error" />
           </div>
           <div>
             <h4 id="confirm-title" className="font-headline text-h4 mb-xs">

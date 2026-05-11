@@ -1,11 +1,12 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Code2, Home, LogOut, MessageSquare, X } from "lucide-react";
+import { Code, Home, LogOut, MessageCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
 interface SidebarProps {
   open: boolean;
+  collapsed: boolean;
   onClose: () => void;
 }
 
@@ -17,11 +18,11 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: "/", label: "Home", icon: Home },
-  { to: "/chat", label: "Chat", icon: MessageSquare },
-  { to: "/analyzer", label: "Analyzer", icon: Code2 },
+  { to: "/chat", label: "Chat", icon: MessageCircle },
+  { to: "/analyzer", label: "Analyzer", icon: Code },
 ];
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ open, collapsed, onClose }: SidebarProps) {
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -31,8 +32,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     navigate("/login", { replace: true });
   }
 
-  const itemClass =
-    "flex items-center gap-md px-md py-sm rounded text-body font-medium transition-colors duration-hover ease-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-alt";
+  const baseItem =
+    "flex items-center gap-md rounded text-body font-medium transition-colors duration-hover ease-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-alt";
+
+  const itemPadding = collapsed
+    ? "justify-center px-0 py-sm"
+    : "justify-start px-md py-sm";
 
   return (
     <>
@@ -48,14 +53,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <aside
         className={cn(
           "z-40 bg-surface-alt border-r border-border",
-          "w-sidebar shrink-0 flex flex-col",
-          "fixed inset-y-0 left-0 transition-transform duration-modal ease-modal",
+          "shrink-0 flex flex-col",
+          "fixed inset-y-0 left-0",
+          "transition-[transform,width] duration-300 ease-out",
           open ? "translate-x-0" : "-translate-x-full",
           "md:static md:translate-x-0 md:flex",
+          collapsed ? "w-20" : "w-sidebar md:w-[200px] lg:w-sidebar",
         )}
         aria-hidden={!open}
       >
-        <div className="flex items-center justify-between px-lg h-navbar border-b border-border md:hidden">
+        <div className="flex items-center justify-between px-md h-14 border-b border-border md:hidden">
           <span className="font-headline text-h4">Menu</span>
           <Button
             variant="ghost"
@@ -67,16 +74,24 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </Button>
         </div>
 
-        <nav className="flex-1 flex flex-col gap-md p-lg">
+        <nav
+          className={cn(
+            "flex-1 flex flex-col gap-md py-lg",
+            collapsed ? "px-sm" : "px-lg",
+          )}
+        >
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               end={to === "/"}
               onClick={onClose}
+              title={collapsed ? label : undefined}
+              aria-label={label}
               className={({ isActive }) =>
                 cn(
-                  itemClass,
+                  baseItem,
+                  itemPadding,
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : "text-foreground hover:bg-surface",
@@ -84,19 +99,30 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               }
             >
               <Icon className="size-6 shrink-0" />
-              <span>{label}</span>
+              {!collapsed && <span>{label}</span>}
             </NavLink>
           ))}
         </nav>
 
-        <div className="p-lg border-t border-border">
+        <div
+          className={cn(
+            "border-t border-border py-lg",
+            collapsed ? "px-sm" : "px-lg",
+          )}
+        >
           <button
             type="button"
             onClick={handleLogout}
-            className={cn(itemClass, "w-full text-error hover:bg-surface")}
+            title={collapsed ? "Logout" : undefined}
+            aria-label="Logout"
+            className={cn(
+              baseItem,
+              itemPadding,
+              "w-full text-error hover:bg-surface",
+            )}
           >
             <LogOut className="size-6 shrink-0" />
-            <span>Logout</span>
+            {!collapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>
