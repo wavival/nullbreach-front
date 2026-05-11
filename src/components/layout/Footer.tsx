@@ -1,26 +1,26 @@
+const AUTHOR_NAME = import.meta.env.VITE_AUTHOR_NAME ?? "Valentina Ramírez";
+const AUTHOR_URL = import.meta.env.VITE_AUTHOR_URL ?? "https://wavival.dev";
+const YEAR = new Date().getFullYear();
+
 export function Footer() {
   return (
     <footer
-      className="flex justify-center items-center text-center border-t"
-      style={{
-        backgroundColor: "#0F172A",
-        borderTopColor: "#334155",
-        padding: "20px",
-        color: "#94A3B8",
-        fontSize: 12,
-        lineHeight: 1.4,
-      }}
+      className={[
+        "flex justify-center items-center text-center",
+        "border-t border-border bg-surface",
+        "px-md py-md",
+        "text-body-sm text-foreground-muted",
+      ].join(" ")}
     >
       <span>
-        © 2026 Valentina Ramírez ·{" "}
+        © {YEAR} {AUTHOR_NAME} ·{" "}
         <a
-          href="https://wavival.dev"
+          href={AUTHOR_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="transition-colors duration-hover ease-hover hover:underline underline-offset-2"
-          style={{ color: "#3B82F6" }}
+          className="text-secondary hover:text-secondary-hover hover:underline underline-offset-2 transition-colors duration-hover ease-hover"
         >
-          wavival.dev
+          {new URL(AUTHOR_URL).hostname.replace(/^www\./, "")}
         </a>
       </span>
     </footer>

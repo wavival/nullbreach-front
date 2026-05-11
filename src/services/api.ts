@@ -9,7 +9,18 @@ import { toast } from "@/lib/toast";
 import { toApiError } from "@/lib/errors";
 import type { RefreshResponse } from "@/types/auth";
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
+function resolveBaseUrl(): string {
+  const fromEnv = import.meta.env.VITE_API_URL;
+  if (fromEnv && fromEnv.trim().length > 0) return fromEnv;
+  // Production builds must specify VITE_API_URL — silently pointing at
+  // localhost would break shipped apps. Dev gets a sensible default.
+  if (import.meta.env.PROD) {
+    throw new Error("VITE_API_URL is required in production builds.");
+  }
+  return "http://localhost:8000/api";
+}
+
+const BASE_URL = resolveBaseUrl();
 
 export const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,

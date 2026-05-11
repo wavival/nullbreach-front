@@ -1,0 +1,25 @@
+{
+  "name": "NullBreach",
+  "short_name": "NullBreach",
+  "description": "Asistente de ciberseguridad con IA. Vulnerabilidades, OWASP, threat modeling y análisis estático de código fuente.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "32x32 48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

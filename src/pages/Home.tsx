@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertCircle,
   MessageSquare,
   MessageSquarePlus,
   Sparkles,
@@ -9,28 +8,14 @@ import {
 import { request } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { formatApiError } from "@/lib/errors";
+import { formatTimestampWithToday } from "@/lib/date";
 import { useAuth } from "@/hooks/useAuth";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { InlineError } from "@/components/ui/InlineError";
 import type { ChatSession } from "@/types/chat";
 
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
-}
-
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  const hh = pad2(d.getHours());
-  const mm = pad2(d.getMinutes());
-  if (sameDay) return `Hoy ${hh}:${mm}`;
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)} ${hh}:${mm}`;
-}
-
 export function Home() {
+  usePageTitle("Inicio");
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -193,7 +178,7 @@ function SessionCard({
             {title}
           </p>
           <p className="mt-xs text-body-sm text-foreground-muted">
-            {formatTimestamp(ts)}
+            {formatTimestampWithToday(ts)}
           </p>
         </div>
       </div>
@@ -244,34 +229,3 @@ function SessionsGridSkeleton() {
   );
 }
 
-function InlineError({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry?: () => void;
-}) {
-  return (
-    <div
-      role="alert"
-      className={cn(
-        "flex items-start gap-sm rounded px-md py-sm",
-        "border border-error text-error",
-        "bg-[rgba(255,139,124,0.1)]",
-        "animate-slide-down",
-      )}
-    >
-      <AlertCircle className="size-4 shrink-0 mt-[2px]" />
-      <span className="text-body-sm flex-1">{message}</span>
-      {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="text-body-sm font-medium underline-offset-2 hover:underline transition-colors duration-hover"
-        >
-          Reintentar
-        </button>
-      )}
-    </div>
-  );
-}

@@ -12,4 +12,19 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          forms: ["react-hook-form", "@hookform/resolvers", "zod"],
+          markdown: ["react-markdown", "remark-gfm"],
+          http: ["axios"],
+          icons: ["lucide-react"],
+        },
+      },
+    },
+  },
 });

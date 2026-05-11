@@ -4,13 +4,16 @@ import { useNavigate } from "react-router-dom";
 import { Camera, LogOut, Mail, Trash, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { profileStore } from "@/services/profileStore";
+import { downscaleSquareImage } from "@/lib/image";
 
 interface ProfileModalProps {
   onClose: () => void;
 }
 
-const MAX_AVATAR_BYTES = 512 * 1024;
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const AVATAR_SIZE_PX = 128;
 
 function formatDate(iso: string | undefined | null): string {
   if (!iso) return "—";
@@ -44,12 +47,14 @@ export function ProfileModal({ onClose }: ProfileModalProps) {
     };
   }, []);
 
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
+
   if (!user) return null;
   if (typeof document === "undefined") return null;
 
   const lastLogin = profileStore.getLastLogin(user.email);
 
-  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     if (!user) return;
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -60,21 +65,16 @@ export function ProfileModal({ onClose }: ProfileModalProps) {
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      setUploadError("Máximo 512 KB.");
+      setUploadError("Máximo 5 MB.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : null;
-      if (!dataUrl) {
-        setUploadError("No se pudo leer la imagen.");
-        return;
-      }
+    try {
+      const dataUrl = await downscaleSquareImage(file, AVATAR_SIZE_PX);
       profileStore.setAvatar(user.email, dataUrl);
       setAvatar(dataUrl);
-    };
-    reader.onerror = () => setUploadError("Error leyendo archivo.");
-    reader.readAsDataURL(file);
+    } catch {
+      setUploadError("No se pudo procesar la imagen.");
+    }
   }
 
   function clearAvatar() {
@@ -94,13 +94,14 @@ export function ProfileModal({ onClose }: ProfileModalProps) {
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-lg">
-      <button
-        type="button"
-        aria-label="Cerrar"
+      <div
+        role="presentation"
+        aria-hidden="true"
         onClick={onClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
       />
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="profile-modal-title"

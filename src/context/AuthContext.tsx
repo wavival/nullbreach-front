@@ -73,6 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           writeUser(null);
         }
       }),
+    // setUser indirectly captured via setUserState/writeUser primitives —
+    // subscribe must register once for the provider lifetime.
     [],
   );
 
@@ -103,15 +105,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           skipAuth: true,
         });
         tokenStore.set(data.access, data.refresh);
-        setUserState(data.user);
-        writeUser(data.user);
+        setUser(data.user);
         if (data.user?.email) profileStore.recordLogin(data.user.email);
         return data;
       } finally {
         setIsLoading(false);
       }
     },
-    [],
+    [setUser],
   );
 
   // Register creates the account but does NOT authenticate the session.
@@ -136,9 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     tokenStore.clear();
-    setUserState(null);
-    writeUser(null);
-  }, []);
+    setUser(null);
+  }, [setUser]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

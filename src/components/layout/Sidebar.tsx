@@ -3,6 +3,7 @@ import { Code, Home, LogOut, MessageCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface SidebarProps {
   open: boolean;
@@ -25,6 +26,10 @@ const navItems: NavItem[] = [
 export function Sidebar({ open, collapsed, onClose }: SidebarProps) {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  // Hide from AT only when the mobile drawer is closed. On desktop the
+  // sidebar is always visible (static), so it must remain in the a11y tree.
+  const ariaHidden = isMobile ? !open : false;
 
   function handleLogout() {
     onClose();
@@ -60,7 +65,7 @@ export function Sidebar({ open, collapsed, onClose }: SidebarProps) {
           "md:static md:translate-x-0 md:flex",
           collapsed ? "w-20" : "w-sidebar md:w-[200px] lg:w-sidebar",
         )}
-        aria-hidden={!open}
+        aria-hidden={ariaHidden}
       >
         <div className="flex items-center justify-between px-md h-14 border-b border-border md:hidden">
           <span className="font-headline text-h4">Menu</span>

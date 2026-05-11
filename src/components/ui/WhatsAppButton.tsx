@@ -1,6 +1,7 @@
 import { MessageCircle } from "lucide-react";
 
 const WHATSAPP_URL =
+  import.meta.env.VITE_WHATSAPP_URL ??
   "https://wa.me/573116865766?text=Hello%2C+I%27d+love+to+build+such+an+amazing+thing+as+NullBreach.+Help+me+out";
 
 export function WhatsAppButton() {
@@ -10,6 +11,7 @@ export function WhatsAppButton() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat on WhatsApp"
+      title="Chat on WhatsApp"
       className={[
         "fixed z-40",
         "bottom-[16px] right-[16px] md:bottom-[24px] md:right-[24px]",

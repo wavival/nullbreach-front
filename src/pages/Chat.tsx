@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -10,7 +11,6 @@ import {
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  AlertCircle,
   Bot,
   Check,
   Loader2,
@@ -26,9 +26,13 @@ import {
 import { request } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { formatApiError, parseApiError } from "@/lib/errors";
+import { formatTimestamp } from "@/lib/date";
 import { useError } from "@/hooks/useError";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Markdown } from "@/components/ui/markdown";
+import { InlineError } from "@/components/ui/InlineError";
 import type {
   ChatMessage,
   ChatSession,
@@ -38,24 +42,6 @@ import type {
 /* ------------------------------------------------------------------ */
 /*  Utils                                                             */
 /* ------------------------------------------------------------------ */
-
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
-}
-
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  const hh = pad2(d.getHours());
-  const mm = pad2(d.getMinutes());
-  if (sameDay) return `${hh}:${mm}`;
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)} ${hh}:${mm}`;
-}
 
 function deriveTitle(session: ChatSession, messages: ChatMessage[]): string {
   if (session.title && session.title.trim().length > 0) return session.title;
@@ -82,6 +68,7 @@ const GRID_BG: CSSProperties = {
 /* ------------------------------------------------------------------ */
 
 export function Chat() {
+  usePageTitle("Chat");
   const navigate = useNavigate();
   const { sessionId: routeSessionId } = useParams<{ sessionId?: string }>();
   const { showError, showSuccess } = useError();
@@ -167,12 +154,19 @@ export function Chat() {
     void loadMessages(routeSessionId);
   }, [routeSessionId, loadMessages]);
 
-  /* -------- Auto-scroll to bottom on new messages -------- */
+  /* -------- Auto-scroll to bottom on new messages --------
+     Initial mount + session change jump instantly; subsequent appends animate. */
+  const lastScrolledSessionRef = useRef<string | null>(null);
   useEffect(() => {
     const el = messagesScrollRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages.length, pendingAssistant]);
+    const isNewSession = lastScrolledSessionRef.current !== routeSessionId;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: isNewSession ? "auto" : "smooth",
+    });
+    lastScrolledSessionRef.current = routeSessionId ?? null;
+  }, [messages.length, pendingAssistant, routeSessionId]);
 
   /* -------- Focus input on session change -------- */
   useEffect(() => {
@@ -230,10 +224,13 @@ export function Chat() {
       const trimmed = nextTitle.trim();
       setRenamingId(null);
       if (trimmed.length === 0) return;
-      const prevTitle =
-        sessions.find((s) => s.id === id)?.title ?? "";
+      let prevTitle = "";
       setSessions((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, title: trimmed } : s)),
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          prevTitle = s.title ?? "";
+          return { ...s, title: trimmed };
+        }),
       );
       try {
         const updated = await request<ChatSession>({
@@ -257,16 +254,28 @@ export function Chat() {
         showError(friendly);
       }
     },
-    [sessions, showError, showSuccess],
+    [showError, showSuccess],
   );
+
+  // Refs allow handleSend to read fresh values without re-creating the callback
+  // on every message append.
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
+  const activeSessionRef = useRef<ChatSession | null>(activeSession);
+  activeSessionRef.current = activeSession;
+  const sendingRef = useRef(false);
+  sendingRef.current = sending;
 
   const handleSend = useCallback(
     async (content: string) => {
       const trimmed = content.trim();
-      if (!trimmed || sending) return;
+      if (!trimmed || sendingRef.current) return;
 
-      const isFirstUserMessage = !messages.some((m) => m.role === "user");
-      const sessionTitleBefore = activeSession?.title?.trim() ?? "";
+      const isFirstUserMessage = !messagesRef.current.some(
+        (m) => m.role === "user",
+      );
+      const sessionTitleBefore =
+        activeSessionRef.current?.title?.trim() ?? "";
 
       let targetId = routeSessionId;
       if (!targetId) {
@@ -357,7 +366,7 @@ export function Chat() {
         setPendingAssistant(false);
       }
     },
-    [activeSession, messages, navigate, routeSessionId, sending, showError],
+    [navigate, routeSessionId, showError],
   );
 
   /* ------------------------------------------------------------------ */
@@ -402,11 +411,12 @@ export function Chat() {
             onToggle={isNarrow ? undefined : () => setSessionsExpanded((v) => !v)}
           />
 
-          {/* Sessions sidebar drawer (mobile) */}
+          {/* Sessions sidebar drawer (mobile). Overlay is decorative; the
+              drawer's own close button is the canonical close affordance. */}
           {drawerOpen && (
-            <button
-              type="button"
-              aria-label="Cerrar lista de sesiones"
+            <div
+              role="presentation"
+              aria-hidden="true"
               className="fixed inset-0 z-30 bg-black/60 md:hidden animate-fade-in"
               onClick={() => setDrawerOpen(false)}
             />
@@ -1057,7 +1067,7 @@ interface MessageBubbleProps {
   message: ChatMessage;
 }
 
-function MessageBubble({ message }: MessageBubbleProps) {
+const MessageBubble = memo(function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
   return (
     <div
@@ -1110,7 +1120,7 @@ function MessageBubble({ message }: MessageBubbleProps) {
       )}
     </div>
   );
-}
+});
 
 /* ------------------------------------------------------------------ */
 /*  Message content — assistant uses Markdown, user stays plain text. */
@@ -1168,45 +1178,6 @@ function MessageSkeleton({ role }: { role: "user" | "assistant" }) {
       </div>
       {isUser && (
         <div className="size-8 shrink-0 rounded-full bg-secondary/15 border border-secondary/40 animate-pulse" />
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Inline error                                                      */
-/* ------------------------------------------------------------------ */
-
-function InlineError({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry?: () => void;
-}) {
-  return (
-    <div
-      role="alert"
-      className={cn(
-        "flex items-start gap-sm rounded px-md py-sm",
-        "border border-error text-error",
-        "bg-[rgba(255,139,124,0.1)]",
-        "animate-slide-down",
-      )}
-    >
-      <AlertCircle className="size-4 shrink-0 mt-[2px]" />
-      <span className="text-body-sm flex-1">{message}</span>
-      {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className={cn(
-            "text-body-sm font-medium underline-offset-2 hover:underline",
-            "transition-colors duration-hover",
-          )}
-        >
-          Reintentar
-        </button>
       )}
     </div>
   );
@@ -1362,6 +1333,8 @@ function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
+
   useEffect(() => {
     function handleKey(e: globalThis.KeyboardEvent) {
       if (e.key === "Escape") onCancel();
@@ -1372,13 +1345,14 @@ function ConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-lg">
-      <button
-        type="button"
-        aria-label="Cerrar"
+      <div
+        role="presentation"
+        aria-hidden="true"
         onClick={onCancel}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
       />
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-title"

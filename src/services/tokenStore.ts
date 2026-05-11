@@ -4,6 +4,12 @@
 // Reads at module load to hydrate from any prior reload; writes on every
 // set()/clear(). Axios interceptors keep reading from this store, so they
 // transparently benefit from the persistence.
+//
+// SECURITY: sessionStorage is readable by any JS running on the origin, so
+// JWTs here are vulnerable to XSS exfiltration. The mitigation is a strict
+// CSP plus careful third-party script hygiene. For higher-assurance setups,
+// move to httpOnly + SameSite=Lax cookies issued by the API and rely on
+// `withCredentials` instead of bearer tokens.
 
 const ACCESS_KEY = "token";
 const REFRESH_KEY = "refresh";

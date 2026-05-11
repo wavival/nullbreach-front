@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { parseApiError } from "@/lib/errors";
 import { useError } from "@/hooks/useError";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 /* ------------------------------------------------------------------ */
 /*  Schemas + form types                                              */
@@ -68,6 +69,7 @@ const PARTICLES = Array.from({ length: 14 }, (_, i) => {
 /* ------------------------------------------------------------------ */
 
 export function Login() {
+  usePageTitle("Login");
   const { token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -109,8 +111,11 @@ export function Login() {
         className="absolute -bottom-40 -left-40 size-[520px] rounded-full bg-secondary/10 blur-3xl pointer-events-none"
       />
 
-      {/* Floating particles */}
-      <div aria-hidden="true" className="absolute inset-0 pointer-events-none">
+      {/* Floating particles — hidden entirely under prefers-reduced-motion. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none motion-reduce:hidden"
+      >
         {PARTICLES.map((p) => (
           <span
             key={p.idx}
@@ -118,6 +123,7 @@ export function Login() {
               "absolute rounded-full",
               p.idx % 2 === 0 ? "bg-primary/30" : "bg-secondary/30",
               p.idx % 4 === 0 ? "animate-float-lg" : "animate-float",
+              "motion-reduce:animate-none",
             )}
             style={{
               left: `${p.left}%`,
@@ -158,6 +164,8 @@ export function Login() {
               <TabButton
                 active={tab === "login"}
                 onClick={() => setTab("login")}
+                onPrev={() => setTab("register")}
+                onNext={() => setTab("register")}
                 id="tab-login"
                 controls="panel-login"
               >
@@ -166,6 +174,8 @@ export function Login() {
               <TabButton
                 active={tab === "register"}
                 onClick={() => setTab("register")}
+                onPrev={() => setTab("login")}
+                onNext={() => setTab("login")}
                 id="tab-register"
                 controls="panel-register"
               >
@@ -229,6 +239,8 @@ export function Login() {
 interface TabButtonProps {
   active: boolean;
   onClick: () => void;
+  onPrev: () => void;
+  onNext: () => void;
   children: React.ReactNode;
   id: string;
   controls: string;
@@ -237,10 +249,28 @@ interface TabButtonProps {
 function TabButton({
   active,
   onClick,
+  onPrev,
+  onNext,
   children,
   id,
   controls,
 }: TabButtonProps) {
+  function handleKey(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      onPrev();
+    } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      onNext();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      // Same callback both ends — parent owns ordering.
+      onPrev();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      onNext();
+    }
+  }
   return (
     <button
       type="button"
@@ -250,6 +280,7 @@ function TabButton({
       aria-selected={active}
       tabIndex={active ? 0 : -1}
       onClick={onClick}
+      onKeyDown={handleKey}
       className={cn(
         "flex-1 px-md py-md text-body font-medium",
         "transition-colors duration-hover ease-hover",
@@ -333,6 +364,11 @@ function FloatingField<TForm extends Record<string, unknown>>({
             "peer-[:not(:placeholder-shown)]:top-[10px]",
             "peer-[:not(:placeholder-shown)]:translate-y-0",
             "peer-[:not(:placeholder-shown)]:scale-[0.82]",
+            // Chrome autofill: the value is present but :placeholder-shown
+            // still matches until first interaction. Force the float state.
+            "peer-[:-webkit-autofill]:top-[10px]",
+            "peer-[:-webkit-autofill]:translate-y-0",
+            "peer-[:-webkit-autofill]:scale-[0.82]",
             error
               ? "text-error peer-focus:text-error"
               : "text-foreground-muted peer-focus:text-primary",

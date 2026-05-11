@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertCircle,
   ChevronDown,
   Code,
   Loader2,
@@ -11,7 +10,9 @@ import { request } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { parseApiError } from "@/lib/errors";
 import { useError } from "@/hooks/useError";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Markdown } from "@/components/ui/markdown";
+import { InlineError } from "@/components/ui/InlineError";
 
 interface AnalyzeRequest {
   code: string;
@@ -72,6 +73,7 @@ const SEVERITY_CLASSES: Record<Severity, string> = {
 };
 
 export function Analyzer() {
+  usePageTitle("Analyzer");
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState<Language>("auto");
   const [loading, setLoading] = useState(false);
@@ -498,34 +500,3 @@ function VulnCard({ vuln }: { vuln: Vulnerability }) {
   );
 }
 
-function InlineError({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry?: () => void;
-}) {
-  return (
-    <div
-      role="alert"
-      className={cn(
-        "flex items-start gap-sm rounded px-md py-sm",
-        "border border-error text-error",
-        "bg-[rgba(255,139,124,0.1)]",
-        "animate-slide-down",
-      )}
-    >
-      <AlertCircle className="size-4 shrink-0 mt-[2px]" />
-      <span className="text-body-sm flex-1">{message}</span>
-      {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="text-body-sm font-medium underline-offset-2 hover:underline transition-colors duration-hover"
-        >
-          Reintentar
-        </button>
-      )}
-    </div>
-  );
-}
