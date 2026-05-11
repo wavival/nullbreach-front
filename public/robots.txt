@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /chat
+Disallow: /analyzer
+
+Sitemap: https://nullbreach.netlify.app/sitemap.xml
