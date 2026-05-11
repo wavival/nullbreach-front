@@ -40,7 +40,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <button
           type="button"
           aria-label="Close sidebar"
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden animate-fade-in"
+          className="fixed inset-0 z-30 bg-black/50 md:hidden animate-fade-in"
           onClick={onClose}
         />
       )}
@@ -51,11 +51,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           "w-sidebar shrink-0 flex flex-col",
           "fixed inset-y-0 left-0 transition-transform duration-modal ease-modal",
           open ? "translate-x-0" : "-translate-x-full",
-          "lg:static lg:translate-x-0 lg:flex",
+          "md:static md:translate-x-0 md:flex",
         )}
         aria-hidden={!open}
       >
-        <div className="flex items-center justify-between px-lg h-navbar border-b border-border lg:hidden">
+        <div className="flex items-center justify-between px-lg h-navbar border-b border-border md:hidden">
           <span className="font-headline text-h4">Menu</span>
           <Button
             variant="ghost"

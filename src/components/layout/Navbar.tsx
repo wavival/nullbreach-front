@@ -4,6 +4,8 @@ import { ChevronDown, LogOut, Menu, ShieldHalf, User as UserIcon } from "lucide-
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { profileStore } from "@/services/profileStore";
+import { ProfileModal } from "./ProfileModal";
 
 interface NavbarProps {
   onToggleSidebar?: () => void;
@@ -15,7 +17,17 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
   const navigate = useNavigate();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!user?.email) {
+      setAvatar(null);
+      return;
+    }
+    setAvatar(profileStore.getAvatar(user.email));
+  }, [user?.email, profileOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -35,12 +47,20 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
 
   function handleLogout() {
     setMenuOpen(false);
+    setProfileOpen(false);
     logout();
     navigate("/login", { replace: true });
   }
 
+  function openProfile() {
+    setMenuOpen(false);
+    setProfileOpen(true);
+  }
+
+  const initial = (user?.email || "?").trim().charAt(0).toUpperCase();
+
   return (
-    <header className="h-navbar w-full border-b border-border bg-surface">
+    <header className="relative z-50 h-navbar w-full border-b border-border bg-surface">
       <div className="h-full flex items-center justify-between px-lg md:px-xl gap-lg">
         <div className="flex items-center gap-md">
           {isAuthenticated && onToggleSidebar && (
@@ -48,14 +68,14 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
               variant="ghost"
               size="icon"
               onClick={onToggleSidebar}
-              className="lg:hidden"
+              className="md:hidden"
               aria-label="Toggle sidebar"
             >
               <Menu />
             </Button>
           )}
           <Link
-            to={isAuthenticated ? "/chat" : "/login"}
+            to={isAuthenticated ? "/" : "/login"}
             className="flex items-center gap-sm font-headline text-h4"
           >
             <ShieldHalf className="text-primary size-6" />
@@ -70,7 +90,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
                 type="button"
                 onClick={() => setMenuOpen((o) => !o)}
                 className={cn(
-                  "flex items-center gap-sm rounded px-md py-sm",
+                  "flex items-center gap-sm rounded pl-xs pr-md py-xs",
                   "text-body text-foreground",
                   "hover:bg-surface-alt transition-colors duration-hover ease-hover",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
@@ -78,7 +98,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
               >
-                <UserIcon className="size-5 text-foreground-muted" />
+                <Avatar avatar={avatar} initial={initial} size={32} />
                 <span className="hidden md:inline max-w-[180px] truncate">
                   {user?.email ?? "Account"}
                 </span>
@@ -94,23 +114,26 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
                 <div
                   role="menu"
                   className={cn(
-                    "absolute right-0 mt-sm w-56",
+                    "absolute right-0 mt-sm w-64 z-50",
                     "rounded border border-border bg-surface-alt shadow-medium",
                     "py-xs animate-fade-in",
                   )}
                 >
-                  <div className="px-md py-sm border-b border-border">
-                    <p className="text-body-sm text-foreground-muted">
-                      Signed in as
-                    </p>
-                    <p className="text-body text-foreground truncate">
-                      {user?.email ?? "—"}
-                    </p>
+                  <div className="flex items-center gap-sm px-md py-sm border-b border-border">
+                    <Avatar avatar={avatar} initial={initial} size={32} />
+                    <div className="min-w-0">
+                      <p className="text-body-sm text-foreground-muted">
+                        Signed in as
+                      </p>
+                      <p className="text-body text-foreground truncate">
+                        {user?.email ?? "—"}
+                      </p>
+                    </div>
                   </div>
                   <MenuItem
                     icon={UserIcon}
                     label="Profile"
-                    onClick={() => setMenuOpen(false)}
+                    onClick={openProfile}
                   />
                   <MenuItem
                     icon={LogOut}
@@ -128,7 +151,41 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
           )}
         </div>
       </div>
+
+      {profileOpen && user && (
+        <ProfileModal
+          user={user}
+          onClose={() => setProfileOpen(false)}
+          onLogout={handleLogout}
+        />
+      )}
     </header>
+  );
+}
+
+interface AvatarProps {
+  avatar: string | null;
+  initial: string;
+  size: number;
+}
+
+function Avatar({ avatar, initial, size }: AvatarProps) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-full overflow-hidden",
+        "bg-primary/15 border border-primary/40",
+        "text-primary font-medium",
+      )}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.45) }}
+      aria-hidden="true"
+    >
+      {avatar ? (
+        <img src={avatar} alt="" className="size-full object-cover" />
+      ) : (
+        <span>{initial}</span>
+      )}
+    </span>
   );
 }
 

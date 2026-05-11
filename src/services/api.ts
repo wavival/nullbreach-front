@@ -5,9 +5,11 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { tokenStore } from "./tokenStore";
+import { toast } from "@/lib/toast";
+import { toApiError } from "@/lib/errors";
 import type { RefreshResponse } from "@/types/auth";
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
+const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 
 export const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -18,6 +20,7 @@ export const api: AxiosInstance = axios.create({
 interface RetriableConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
   _skipAuth?: boolean;
+  _silent?: boolean;
 }
 
 api.interceptors.request.use((config) => {
@@ -49,37 +52,65 @@ async function performRefresh(): Promise<string | null> {
   }
 }
 
+function shouldToast(cfg: RetriableConfig | undefined): boolean {
+  if (!cfg) return true;
+  return !cfg._skipAuth && !cfg._silent;
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as RetriableConfig | undefined;
-    if (!original || original._retry || original._skipAuth) {
-      return Promise.reject(error);
-    }
-    if (error.response?.status !== 401) {
-      return Promise.reject(error);
+
+    // Network / timeout / no-response cases.
+    if (!error.response) {
+      const apiError = toApiError(error);
+      if (shouldToast(original)) toast.error(apiError.message);
+      return Promise.reject(apiError);
     }
 
-    original._retry = true;
-    refreshPromise ??= performRefresh().finally(() => {
-      refreshPromise = null;
-    });
-    const newToken = await refreshPromise;
-    if (!newToken) {
-      return Promise.reject(error);
+    const status = error.response.status;
+
+    // 401: try refresh once, retry original.
+    if (status === 401 && original && !original._retry && !original._skipAuth) {
+      original._retry = true;
+      refreshPromise ??= performRefresh().finally(() => {
+        refreshPromise = null;
+      });
+      const newToken = await refreshPromise;
+      if (newToken) {
+        original.headers.set("Authorization", `Bearer ${newToken}`);
+        return api.request(original);
+      }
+      // Refresh failed → tokens already cleared; surface friendly toast.
+      const apiError = toApiError(error);
+      if (!original._silent) {
+        toast.error("Sesión expirada, inicia sesión.");
+      }
+      return Promise.reject(apiError);
     }
-    original.headers.set("Authorization", `Bearer ${newToken}`);
-    return api.request(original);
+
+    const apiError = toApiError(error);
+    if (shouldToast(original)) {
+      toast.error(apiError.message);
+    }
+    return Promise.reject(apiError);
   },
 );
 
-export type ApiRequestConfig = AxiosRequestConfig & { skipAuth?: boolean };
+export type ApiRequestConfig = AxiosRequestConfig & {
+  skipAuth?: boolean;
+  /** Suppress automatic toast on error. Use when the caller renders its own
+   *  inline error / custom toast and doesn't want a duplicate. */
+  silent?: boolean;
+};
 
 export async function request<T>(config: ApiRequestConfig): Promise<T> {
-  const { skipAuth, ...rest } = config;
+  const { skipAuth, silent, ...rest } = config;
   const res = await api.request<T>({
     ...rest,
     ...(skipAuth ? { _skipAuth: true } : {}),
+    ...(silent ? { _silent: true } : {}),
   } as AxiosRequestConfig);
   return res.data;
 }

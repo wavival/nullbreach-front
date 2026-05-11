@@ -1,11 +1,11 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useForm, type UseFormRegister, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AxiosError } from "axios";
 import { z } from "zod";
 import {
   AlertCircle,
+  CheckCircle2,
   Loader2,
   Lock,
   Mail,
@@ -13,13 +13,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { request } from "@/services/api";
 import { cn } from "@/lib/utils";
-import type {
-  AuthResponse,
-  LoginRequest,
-  RegisterRequest,
-} from "@/types/auth";
+import { formatApiError, parseApiError } from "@/lib/errors";
+import { useError } from "@/hooks/useError";
 
 /* ------------------------------------------------------------------ */
 /*  Schemas + form types                                              */
@@ -49,24 +45,6 @@ type Tab = "login" | "register";
 /*  Utils                                                             */
 /* ------------------------------------------------------------------ */
 
-function extractApiError(err: unknown): string {
-  if (err instanceof AxiosError) {
-    const data = err.response?.data as unknown;
-    if (typeof data === "string") return data;
-    if (data && typeof data === "object") {
-      const obj = data as Record<string, unknown>;
-      if (typeof obj.detail === "string") return obj.detail;
-      if (typeof obj.message === "string") return obj.message;
-      const firstField = Object.values(obj).find(
-        (v) => Array.isArray(v) && typeof v[0] === "string",
-      ) as string[] | undefined;
-      if (firstField && firstField[0]) return firstField[0];
-    }
-    return err.message || "Error de red";
-  }
-  return "Error inesperado";
-}
-
 const GRID_BG: CSSProperties = {
   backgroundImage:
     "linear-gradient(to right, rgba(51,65,85,0.6) 0.5px, transparent 0.5px), linear-gradient(to bottom, rgba(51,65,85,0.6) 0.5px, transparent 0.5px)",
@@ -88,18 +66,27 @@ const PARTICLES = Array.from({ length: 14 }, (_, i) => {
 /* ------------------------------------------------------------------ */
 
 export function Login() {
-  const { token, setToken, setUser } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? "/chat";
+  const from = (location.state as { from?: string } | null)?.from ?? "/";
   const [tab, setTab] = useState<Tab>("login");
+  const [justRegisteredEmail, setJustRegisteredEmail] = useState<string | null>(
+    null,
+  );
 
   if (token) return <Navigate to={from} replace />;
 
-  function handleAuthSuccess(data: AuthResponse) {
-    setToken(data.access, data.refresh);
-    setUser(data.user);
+  function handleAuthSuccess() {
     navigate(from, { replace: true });
+  }
+
+  function handleRegisterSuccess(email: string) {
+    setJustRegisteredEmail(email);
+  }
+
+  function goToLoginNow() {
+    setTab("login");
   }
 
   return (
@@ -192,16 +179,32 @@ export function Login() {
               />
             </div>
 
-            {/* Cross-fade panels (remount on tab change) */}
-            <div key={tab} className="animate-fade-in">
+            {/* Cross-fade panels (remount on tab change OR state change) */}
+            <div
+              key={
+                tab === "register" && justRegisteredEmail
+                  ? "register-success"
+                  : tab
+              }
+              className="animate-fade-in"
+            >
               {tab === "login" ? (
                 <LoginForm
+                  defaultEmail={justRegisteredEmail}
                   onSuccess={handleAuthSuccess}
-                  onSwitchToRegister={() => setTab("register")}
+                  onSwitchToRegister={() => {
+                    setJustRegisteredEmail(null);
+                    setTab("register");
+                  }}
+                />
+              ) : justRegisteredEmail ? (
+                <RegisterSuccess
+                  email={justRegisteredEmail}
+                  onGoToLogin={goToLoginNow}
                 />
               ) : (
                 <RegisterForm
-                  onSuccess={handleAuthSuccess}
+                  onSuccess={handleRegisterSuccess}
                   onSwitchToLogin={() => setTab("login")}
                 />
               )}
@@ -416,33 +419,50 @@ function FormError({ message }: { message: string | null }) {
 /* ------------------------------------------------------------------ */
 
 interface LoginFormProps {
-  onSuccess: (data: AuthResponse) => void;
+  defaultEmail?: string | null;
+  onSuccess: () => void;
   onSwitchToRegister: () => void;
 }
 
-function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
+function LoginForm({
+  defaultEmail,
+  onSuccess,
+  onSwitchToRegister,
+}: LoginFormProps) {
+  const { login } = useAuth();
+  const { showSuccess } = useError();
   const [apiError, setApiError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: defaultEmail ?? "", password: "" },
   });
+
+  useEffect(() => {
+    if (defaultEmail) {
+      reset({ email: defaultEmail, password: "" });
+    }
+  }, [defaultEmail, reset]);
 
   async function onSubmit(values: LoginFormData) {
     setApiError(null);
     try {
-      const data = await request<AuthResponse>({
-        url: "/auth/login/",
-        method: "POST",
-        data: values satisfies LoginRequest,
-        skipAuth: true,
-      });
-      onSuccess(data);
+      await login(values.email, values.password);
+      showSuccess("Inicio de sesión exitoso");
+      onSuccess();
     } catch (err) {
-      setApiError(extractApiError(err));
+      const parsed = parseApiError(err);
+      const friendly =
+        parsed.status === 401
+          ? "Credenciales inválidas."
+          : parsed.status >= 500
+            ? "Error del servidor."
+            : parsed.message;
+      setApiError(friendly);
     }
   }
 
@@ -504,11 +524,13 @@ function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
 /* ------------------------------------------------------------------ */
 
 interface RegisterFormProps {
-  onSuccess: (data: AuthResponse) => void;
+  onSuccess: (email: string) => void;
   onSwitchToLogin: () => void;
 }
 
 function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) {
+  const { register: registerUser } = useAuth();
+  const { showSuccess } = useError();
   const [apiError, setApiError] = useState<string | null>(null);
   const {
     register,
@@ -522,19 +544,20 @@ function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) {
   async function onSubmit(values: RegisterFormData) {
     setApiError(null);
     try {
-      const payload: RegisterRequest = {
-        email: values.email,
-        password: values.password,
-      };
-      const data = await request<AuthResponse>({
-        url: "/auth/register/",
-        method: "POST",
-        data: payload,
-        skipAuth: true,
-      });
-      onSuccess(data);
+      await registerUser(values.email, values.password);
+      showSuccess("Cuenta creada exitosamente");
+      onSuccess(values.email);
     } catch (err) {
-      setApiError(extractApiError(err));
+      const parsed = parseApiError(err);
+      const friendly =
+        parsed.status === 409
+          ? "Email ya existe."
+          : parsed.status === 400 || parsed.status === 422
+            ? parsed.message || "Contraseña débil."
+            : parsed.status >= 500
+              ? "Error del servidor."
+              : parsed.message;
+      setApiError(friendly);
     }
   }
 
@@ -631,5 +654,75 @@ function SwitchLink({
     >
       {children}
     </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Register success card                                             */
+/* ------------------------------------------------------------------ */
+
+const AUTO_SWITCH_MS = 2000;
+
+interface RegisterSuccessProps {
+  email: string;
+  onGoToLogin: () => void;
+}
+
+function RegisterSuccess({ email, onGoToLogin }: RegisterSuccessProps) {
+  useEffect(() => {
+    const t = window.setTimeout(onGoToLogin, AUTO_SWITCH_MS);
+    return () => window.clearTimeout(t);
+  }, [onGoToLogin]);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex flex-col items-center text-center gap-md animate-fade-in-up"
+      style={{ animationDuration: "300ms" }}
+    >
+      <div
+        className={cn(
+          "size-14 rounded-full flex items-center justify-center",
+          "bg-primary/10 border border-primary/40",
+          "shadow-[0_0_24px_-4px_rgba(34,197,94,0.5)]",
+          "animate-pulse-glow",
+        )}
+      >
+        <CheckCircle2 className="size-7 text-primary" />
+      </div>
+
+      <div>
+        <h3 className="font-headline text-h3 text-foreground mb-xs">
+          Cuenta creada exitosamente
+        </h3>
+        <p className="text-body text-foreground-muted">
+          Inicia sesión con tus credenciales para continuar.
+        </p>
+        <p className="mt-sm text-body-sm text-foreground-muted break-all">
+          <span className="text-foreground font-medium">{email}</span>
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onGoToLogin}
+        className={cn(
+          "relative w-full h-12 rounded font-medium text-body mt-sm",
+          "bg-primary text-primary-foreground",
+          "flex items-center justify-center gap-sm",
+          "transition-all duration-hover ease-hover",
+          "hover:brightness-110 hover:shadow-[0_8px_24px_-6px_rgba(34,197,94,0.55)]",
+          "active:brightness-90 active:scale-[0.99]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-alt",
+        )}
+      >
+        Ir a login
+      </button>
+
+      <p className="text-body-sm text-foreground-muted">
+        Cambiando automáticamente en 2 segundos…
+      </p>
+    </div>
   );
 }

@@ -1,30 +1,42 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
-import { useAuth } from "@/hooks/useAuth";
 import { Layout } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { Toaster } from "@/components/ui/toaster";
 import { Login } from "@/pages/Login";
+import { Home } from "@/pages/Home";
 import { Chat } from "@/pages/Chat";
 import { Analyzer } from "@/pages/Analyzer";
 import { NotFound } from "@/pages/NotFound";
 
-function RootRedirect() {
-  const { token } = useAuth();
-  return <Navigate to={token ? "/chat" : "/login"} replace />;
-}
-
 export default function App() {
   return (
     <AuthProvider>
+      <Toaster />
       <Routes>
         {/* Public, no Layout */}
         <Route path="/login" element={<Login />} />
 
         {/* Authenticated area, wrapped in Layout */}
         <Route element={<Layout />}>
-          <Route path="/" element={<RootRedirect />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/chat"
+            element={
+              <ProtectedRoute>
+                <Chat />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat/:sessionId"
             element={
               <ProtectedRoute>
                 <Chat />

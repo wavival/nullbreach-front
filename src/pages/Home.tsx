@@ -1,0 +1,277 @@
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  AlertCircle,
+  MessageSquare,
+  MessageSquarePlus,
+  Sparkles,
+} from "lucide-react";
+import { request } from "@/services/api";
+import { cn } from "@/lib/utils";
+import { formatApiError } from "@/lib/errors";
+import { useAuth } from "@/hooks/useAuth";
+import type { ChatSession } from "@/types/chat";
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const hh = pad2(d.getHours());
+  const mm = pad2(d.getMinutes());
+  if (sameDay) return `Hoy ${hh}:${mm}`;
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)} ${hh}:${mm}`;
+}
+
+export function Home() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const loadSessions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await request<ChatSession[] | { items: ChatSession[] }>({
+        url: "/chat/sessions/",
+        method: "GET",
+      });
+      const list = Array.isArray(data) ? data : data.items ?? [];
+      setSessions(list);
+    } catch (err) {
+      setError(formatApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  async function handleNewSession() {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const created = await request<ChatSession>({
+        url: "/chat/sessions/",
+        method: "POST",
+        data: { title: "" },
+      });
+      navigate(`/chat/${created.id}`);
+    } catch (err) {
+      setCreateError(formatApiError(err));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-xl animate-fade-in-up">
+      <header className="flex flex-col gap-sm">
+        <div className="flex items-center gap-sm text-foreground-muted">
+          <Sparkles className="size-4 text-primary" />
+          <span className="text-body-sm">
+            {user?.email ? `Hola, ${user.email}` : "Bienvenido"}
+          </span>
+        </div>
+        <h1 className="font-headline text-h1 text-foreground">
+          Tus conversaciones
+        </h1>
+        <p className="text-body text-foreground-muted max-w-[640px]">
+          Continúa donde lo dejaste o empieza una nueva conversación sobre
+          ciberseguridad.
+        </p>
+      </header>
+
+      <div className="flex flex-col sm:flex-row gap-md sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={handleNewSession}
+          disabled={creating}
+          className={cn(
+            "inline-flex items-center justify-center gap-sm h-11 px-lg rounded",
+            "bg-primary text-primary-foreground font-medium",
+            "transition-all duration-hover ease-hover",
+            "hover:brightness-110 hover:shadow-[0_8px_24px_-6px_rgba(34,197,94,0.55)]",
+            "active:brightness-90 active:scale-[0.99]",
+            "disabled:opacity-60 disabled:cursor-not-allowed",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
+          )}
+        >
+          <MessageSquarePlus className="size-4" />
+          {creating ? "Creando…" : "Nueva conversación"}
+        </button>
+
+        {!loading && !error && sessions.length > 0 && (
+          <span className="text-body-sm text-foreground-muted">
+            {sessions.length}{" "}
+            {sessions.length === 1 ? "conversación" : "conversaciones"}
+          </span>
+        )}
+      </div>
+
+      {createError && <InlineError message={createError} />}
+
+      {loading && <SessionsGridSkeleton />}
+
+      {!loading && error && (
+        <InlineError message={error} onRetry={() => void loadSessions()} />
+      )}
+
+      {!loading && !error && sessions.length === 0 && <EmptyState />}
+
+      {!loading && !error && sessions.length > 0 && (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
+          {sessions.map((s, idx) => (
+            <li
+              key={s.id}
+              className="animate-fade-in-up"
+              style={{ animationDelay: `${Math.min(idx * 40, 320)}ms` }}
+            >
+              <SessionCard
+                session={s}
+                onClick={() => navigate(`/chat/${s.id}`)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function SessionCard({
+  session,
+  onClick,
+}: {
+  session: ChatSession;
+  onClick: () => void;
+}) {
+  const title = session.title?.trim() || "Nueva conversación";
+  const ts = session.updated_at || session.created_at;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group w-full text-left p-lg rounded",
+        "border border-border/70 bg-surface-alt/60 backdrop-blur-sm",
+        "transition-all duration-hover ease-hover",
+        "hover:border-primary/60 hover:shadow-[0_8px_24px_-8px_rgba(34,197,94,0.35)]",
+        "hover:-translate-y-[2px]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+      )}
+    >
+      <div className="flex items-start gap-sm">
+        <div
+          className={cn(
+            "size-9 shrink-0 rounded-full flex items-center justify-center",
+            "bg-primary/10 border border-primary/30",
+            "transition-colors duration-hover",
+            "group-hover:bg-primary/15",
+          )}
+        >
+          <MessageSquare className="size-4 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-body text-foreground">
+            {title}
+          </p>
+          <p className="mt-xs text-body-sm text-foreground-muted">
+            {formatTimestamp(ts)}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center text-center",
+        "py-3xl px-lg rounded",
+        "border border-dashed border-border/70 bg-surface-alt/30",
+        "animate-fade-in-up",
+      )}
+    >
+      <div
+        className={cn(
+          "size-14 rounded-full flex items-center justify-center mb-md",
+          "bg-primary/10 border border-primary/30",
+          "shadow-[0_0_24px_-4px_rgba(34,197,94,0.35)]",
+        )}
+      >
+        <MessageSquarePlus className="size-6 text-primary" />
+      </div>
+      <h3 className="font-headline text-h4 text-foreground mb-xs">
+        Comienza una nueva conversación
+      </h3>
+      <p className="max-w-[420px] text-body-sm text-foreground-muted">
+        Aún no tienes conversaciones. Crea una para empezar a hablar sobre
+        ciberseguridad.
+      </p>
+    </div>
+  );
+}
+
+function SessionsGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          className="h-20 rounded border border-border/70 bg-surface-alt/40 animate-pulse"
+        />
+      ))}
+    </div>
+  );
+}
+
+function InlineError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "flex items-start gap-sm rounded px-md py-sm",
+        "border border-error text-error",
+        "bg-[rgba(255,139,124,0.1)]",
+        "animate-slide-down",
+      )}
+    >
+      <AlertCircle className="size-4 shrink-0 mt-[2px]" />
+      <span className="text-body-sm flex-1">{message}</span>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="text-body-sm font-medium underline-offset-2 hover:underline transition-colors duration-hover"
+        >
+          Reintentar
+        </button>
+      )}
+    </div>
+  );
+}

@@ -1,9 +1,38 @@
-// In-memory access token store. Survives route changes but not full reloads.
-// Refresh token lives in httpOnly cookie or localStorage per backend choice;
-// here we keep it in memory too for simplicity.
+// Token store backed by sessionStorage so the session survives page reloads
+// (but is dropped when the browser tab/window is closed).
+//
+// Reads at module load to hydrate from any prior reload; writes on every
+// set()/clear(). Axios interceptors keep reading from this store, so they
+// transparently benefit from the persistence.
 
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
+const ACCESS_KEY = "token";
+const REFRESH_KEY = "refresh";
+
+function hasStorage(): boolean {
+  return typeof window !== "undefined" && !!window.sessionStorage;
+}
+
+function readKey(key: string): string | null {
+  if (!hasStorage()) return null;
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeKey(key: string, value: string | null): void {
+  if (!hasStorage()) return;
+  try {
+    if (value === null) window.sessionStorage.removeItem(key);
+    else window.sessionStorage.setItem(key, value);
+  } catch {
+    /* ignore storage errors (quota / privacy mode) */
+  }
+}
+
+let accessToken: string | null = readKey(ACCESS_KEY);
+let refreshToken: string | null = readKey(REFRESH_KEY);
 
 type Listener = (token: string | null) => void;
 const listeners = new Set<Listener>();
@@ -17,12 +46,18 @@ export const tokenStore = {
   },
   set(access: string | null, refresh?: string | null): void {
     accessToken = access;
-    if (refresh !== undefined) refreshToken = refresh;
+    writeKey(ACCESS_KEY, access);
+    if (refresh !== undefined) {
+      refreshToken = refresh;
+      writeKey(REFRESH_KEY, refresh);
+    }
     listeners.forEach((l) => l(accessToken));
   },
   clear(): void {
     accessToken = null;
     refreshToken = null;
+    writeKey(ACCESS_KEY, null);
+    writeKey(REFRESH_KEY, null);
     listeners.forEach((l) => l(null));
   },
   subscribe(listener: Listener): () => void {
