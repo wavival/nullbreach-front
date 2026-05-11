@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useEffect,
   useMemo,
@@ -16,8 +15,7 @@ import type {
   RegisterRequest,
   User,
 } from "@/types/auth";
-
-export const AuthContext = createContext<AuthContextValue | null>(null);
+import { AuthContext } from "./auth-context";
 
 const USER_KEY = "user";
 
@@ -73,8 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           writeUser(null);
         }
       }),
-    // setUser indirectly captured via setUserState/writeUser primitives —
-    // subscribe must register once for the provider lifetime.
     [],
   );
 
