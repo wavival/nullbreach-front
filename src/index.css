@@ -1,0 +1,60 @@
+/* Geist not on Google Fonts. Inter + JetBrains Mono loaded here.
+   For Geist install `geist` package or self-host. Headline stack falls back to Inter. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: theme("colors.border");
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-surface text-foreground font-sans text-body antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  h1 {
+    @apply font-headline text-h1;
+  }
+  h2 {
+    @apply font-headline text-h2;
+  }
+  h3 {
+    @apply font-headline text-h3;
+  }
+  h4 {
+    @apply font-headline text-h4;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp {
+    @apply font-mono text-code;
+  }
+
+  /* Scrollbar (subtle) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: theme("colors.border");
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: theme("colors.neutral");
+  }
+}
