@@ -5,7 +5,8 @@ import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
 
 export function Layout() {
-  const { isAuthenticated } = useAuth();
+  const { token } = useAuth();
+  const isAuthenticated = !!token;
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (

@@ -10,15 +10,24 @@ export interface LoginRequest {
 }
 
 export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
+  access: string;
+  refresh: string;
 }
 
-export interface LoginResponse extends AuthTokens {
+export interface AuthResponse extends AuthTokens {
   user: User;
 }
 
 export interface RefreshResponse {
-  accessToken: string;
-  refreshToken?: string;
+  access: string;
+  refresh?: string;
+}
+
+export interface AuthContextValue {
+  user: User | null;
+  token: string | null;
+  isLoading: boolean;
+  setToken: (token: string | null, refresh?: string | null) => void;
+  setUser: (user: User | null) => void;
+  logout: () => void;
 }

@@ -37,12 +37,12 @@ async function performRefresh(): Promise<string | null> {
   if (!refresh) return null;
   try {
     const res = await axios.post<RefreshResponse>(
-      `${BASE_URL}/auth/refresh`,
-      { refreshToken: refresh },
+      `${BASE_URL}/auth/refresh/`,
+      { refresh },
       { headers: { "Content-Type": "application/json" } },
     );
-    tokenStore.set(res.data.accessToken, res.data.refreshToken ?? refresh);
-    return res.data.accessToken;
+    tokenStore.set(res.data.access, res.data.refresh ?? refresh);
+    return res.data.access;
   } catch {
     tokenStore.clear();
     return null;
