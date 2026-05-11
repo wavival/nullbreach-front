@@ -9,6 +9,11 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
 export interface AuthTokens {
   access: string;
   refresh: string;

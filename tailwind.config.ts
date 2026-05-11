@@ -136,9 +136,40 @@ const config: Config = {
           from: { opacity: "0" },
           to: { opacity: "1" },
         },
+        "fade-in-up": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-down": {
+          from: { opacity: "0", transform: "translateY(-8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "card-in": {
+          from: { opacity: "0", transform: "translateY(20px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translate(0, 0)" },
+          "50%": { transform: "translate(0, -2px)" },
+        },
+        "float-lg": {
+          "0%, 100%": { transform: "translate(0, 0)" },
+          "33%": { transform: "translate(2px, -3px)" },
+          "66%": { transform: "translate(-2px, 2px)" },
+        },
+        "pulse-glow": {
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(34, 197, 94, 0.35)" },
+          "50%": { boxShadow: "0 0 0 8px rgba(34, 197, 94, 0)" },
+        },
       },
       animation: {
-        "fade-in": "fade-in 200ms ease-out",
+        "fade-in": "fade-in 200ms ease-out both",
+        "fade-in-up": "fade-in-up 300ms ease-out both",
+        "slide-down": "slide-down 200ms ease-out both",
+        "card-in": "card-in 300ms ease-out both",
+        float: "float 6s ease-in-out infinite",
+        "float-lg": "float-lg 12s ease-in-out infinite",
+        "pulse-glow": "pulse-glow 2.5s ease-in-out infinite",
       },
     },
   },
