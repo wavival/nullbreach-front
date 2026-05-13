@@ -12,6 +12,7 @@ createRoot(rootEl).render(
   <StrictMode>
     <ErrorBoundary>
       <BrowserRouter
+        basename={import.meta.env.BASE_URL.replace(/\/$/, "")}
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
         <App />
