@@ -3,6 +3,30 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "NullBreach frontend — React 18 + Vite + TypeScript SPA for an AI-powered cybersecurity assistant. Talks to a Django REST backend (JWT auth) for chat sessions, message history, and static code analysis.",
+  "author": {
+    "name": "Valentina Ramírez",
+    "url": "https://wavival.dev"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wavival/nullbreach-web.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wavival/nullbreach-web/issues"
+  },
+  "homepage": "https://wavival.dev/nullbreach",
+  "keywords": [
+    "react",
+    "vite",
+    "typescript",
+    "tailwindcss",
+    "cybersecurity",
+    "ai-assistant",
+    "jwt",
+    "spa"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

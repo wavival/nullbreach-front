@@ -77,7 +77,7 @@ describe("<Login />", () => {
 
   it("shows generic server error on 5xx", async () => {
     server.use(
-      http.post("http://localhost:8000/api/auth/login/", () =>
+      http.post("http://localhost:8000/auth/login/", () =>
         HttpResponse.json({}, { status: 500 }),
       ),
     );

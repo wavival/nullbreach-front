@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw";
 
 // Tests target the same base as the dev fallback in src/services/api.ts.
 // Individual suites can override via server.use(...).
-const BASE = "http://localhost:8000/api";
+const BASE = "http://localhost:8000";
 
 export const handlers = [
   http.post(`${BASE}/auth/login/`, async ({ request }) => {

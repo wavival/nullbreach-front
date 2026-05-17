@@ -17,7 +17,7 @@ function resolveBaseUrl(): string {
   if (import.meta.env.PROD) {
     throw new Error("VITE_API_URL is required in production builds.");
   }
-  return "http://localhost:8000/api";
+  return "http://localhost:8000";
 }
 
 const BASE_URL = resolveBaseUrl();
