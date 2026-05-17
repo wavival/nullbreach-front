@@ -27,7 +27,7 @@ export function CodeBlock({ code, lang }: CodeBlockProps) {
   }
 
   return (
-    <div className="relative my-xs rounded border border-border bg-surface overflow-hidden not-prose">
+    <div className="relative my-xs max-w-full rounded border border-border bg-surface overflow-hidden not-prose">
       <div className="flex items-center justify-between gap-sm px-sm py-xs border-b border-border bg-surface-alt/40">
         <span className="text-body-sm font-mono text-foreground-muted">
           {lang || "code"}

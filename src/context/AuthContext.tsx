@@ -7,7 +7,6 @@ import {
 } from "react";
 import { request } from "@/services/api";
 import { tokenStore } from "@/services/tokenStore";
-import { profileStore } from "@/services/profileStore";
 import type {
   AuthContextValue,
   AuthResponse,
@@ -102,7 +101,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         tokenStore.set(data.access, data.refresh);
         setUser(data.user);
-        if (data.user?.email) profileStore.recordLogin(data.user.email);
         return data;
       } finally {
         setIsLoading(false);

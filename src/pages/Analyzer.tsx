@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   Code,
@@ -65,6 +65,66 @@ const LANGUAGE_META: Record<Language, { label: string; icon: string }> = {
   ruby: { label: "Ruby", icon: "💎" },
 };
 
+/* Heuristic source-language detection. Best-effort keyword scoring — not a
+   real parser, just enough to flag an obvious selected/pasted mismatch. */
+function detectLanguage(code: string): Language | null {
+  const c = code;
+  if (c.trim().length < 8) return null;
+  const scores: Partial<Record<Language, number>> = {};
+  const add = (lang: Language, n: number) => {
+    scores[lang] = (scores[lang] ?? 0) + n;
+  };
+
+  if (/\bdef\s+\w+\s*\(.*\)\s*:/.test(c)) add("python", 3);
+  if (/\b(elif|None|True|False)\b/.test(c) || /\bprint\s*\(/.test(c)) add("python", 1);
+
+  if (/\b(const|let)\s+\w+/.test(c) || /=>/.test(c)) {
+    add("javascript", 1);
+    add("typescript", 1);
+  }
+  if (/\b(function|console\.log)\b/.test(c)) {
+    add("javascript", 1);
+    add("typescript", 1);
+  }
+  if (/:\s*(string|number|boolean|void|any|unknown)\b/.test(c)) add("typescript", 3);
+  if (/\b(interface|type)\s+\w+\s*[={<]/.test(c)) add("typescript", 3);
+
+  if (/\bpackage\s+\w+/.test(c) && /\bfunc\s+\w+/.test(c)) add("go", 4);
+  if (/:=/.test(c)) add("go", 2);
+
+  if (/\bpublic\s+(class|static)\b/.test(c)) add("java", 3);
+  if (/\bSystem\.out\./.test(c) || /\bimport\s+java\./.test(c)) add("java", 2);
+
+  if (/#include\s*<\w+\.h>/.test(c)) add("c", 2);
+  if (/#include\s*<(iostream|vector|string)>/.test(c) || /\bstd::/.test(c) || /\bcout\s*<</.test(c))
+    add("cpp", 4);
+  if (/\bint\s+main\s*\(/.test(c)) {
+    add("c", 1);
+    add("cpp", 1);
+  }
+  if (/\bprintf\s*\(/.test(c)) add("c", 1);
+
+  if (/\bfn\s+\w+\s*\(/.test(c)) add("rust", 2);
+  if (/\blet\s+mut\b/.test(c) || /\bprintln!\s*\(/.test(c) || /\buse\s+std::/.test(c))
+    add("rust", 3);
+
+  if (/<\?php/.test(c)) add("php", 5);
+  if (/\$\w+\s*=/.test(c) || /\becho\s+/.test(c)) add("php", 1);
+
+  if (/\bputs\s+/.test(c)) add("ruby", 2);
+  if (/\brequire\s+['"]/.test(c) || /\bdo\s*\|[^|]*\|/.test(c)) add("ruby", 2);
+
+  let best: Language | null = null;
+  let bestScore = 0;
+  for (const [lang, score] of Object.entries(scores) as [Language, number][]) {
+    if (score > bestScore) {
+      bestScore = score;
+      best = lang;
+    }
+  }
+  return bestScore >= 2 ? best : null;
+}
+
 const SEVERITY_CLASSES: Record<Severity, string> = {
   critical: "border-severity-critical text-severity-critical bg-severity-critical/10",
   high: "border-severity-high text-severity-high bg-severity-high/10",
@@ -81,6 +141,13 @@ export function Analyzer() {
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const { showError, showSuccess } = useError();
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const submit = useCallback(async () => {
     const trimmed = code.trim();
@@ -94,6 +161,8 @@ export function Analyzer() {
     setLoading(true);
     setError(null);
     setResult(null);
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
     try {
       const data = await request<AnalyzeResponse>({
         url: "/analyzer/scan/",
@@ -103,10 +172,14 @@ export function Analyzer() {
           ...(language !== "auto" ? { language } : {}),
         } satisfies AnalyzeRequest,
         silent: true,
+        signal: abortControllerRef.current.signal,
       });
       setResult(data);
       showSuccess("Análisis completado");
     } catch (err) {
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
       const parsed = parseApiError(err);
       const friendly =
         parsed.status >= 500
@@ -119,6 +192,7 @@ export function Analyzer() {
     }
   }, [code, language, showError, showSuccess]);
 
+  const detected = useMemo(() => detectLanguage(code), [code]);
   const canSubmit = code.trim().length > 0 && !loading;
 
   return (
@@ -184,6 +258,10 @@ export function Analyzer() {
 
         {validationError && (
           <InlineError message={validationError} />
+        )}
+
+        {code.trim().length > 0 && (
+          <LanguageMatchBadge detected={detected} selected={language} />
         )}
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-sm">
@@ -405,6 +483,50 @@ function LanguageSelect({ value, onChange, disabled }: LanguageSelectProps) {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+interface LanguageMatchBadgeProps {
+  detected: Language | null;
+  selected: Language;
+}
+
+function LanguageMatchBadge({ detected, selected }: LanguageMatchBadgeProps) {
+  if (!detected) {
+    return (
+      <div className="rounded border border-border bg-surface px-md py-sm text-body-sm text-foreground-muted">
+        No se pudo detectar el lenguaje automáticamente.
+      </div>
+    );
+  }
+
+  const detectedLabel = LANGUAGE_META[detected].label;
+  const match = selected === "auto" || selected === detected;
+
+  if (match) {
+    return (
+      <div className="rounded border border-severity-low bg-severity-low/10 px-md py-sm text-body-sm text-severity-low flex items-center gap-sm">
+        <span aria-hidden="true">✓</span>
+        <span>
+          {selected === "auto"
+            ? `Lenguaje detectado: ${detectedLabel}`
+            : "El lenguaje coincide con el código."}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="alert"
+      className="rounded border border-severity-medium bg-severity-medium/10 px-md py-sm text-body-sm text-severity-medium flex items-center gap-sm"
+    >
+      <span aria-hidden="true">⚠️</span>
+      <span>
+        Detectado: {detectedLabel} | Seleccionado:{" "}
+        {LANGUAGE_META[selected].label}
+      </span>
     </div>
   );
 }

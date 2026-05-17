@@ -46,7 +46,8 @@ export function Layout() {
           )}
         </main>
       </div>
-      <Footer />
+      {/* Chat is a viewport-locked app-shell — no room for a footer. */}
+      {!fullWidth && <Footer />}
     </div>
   );
 }

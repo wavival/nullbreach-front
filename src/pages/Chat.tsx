@@ -50,7 +50,7 @@ function deriveTitle(session: ChatSession, messages: ChatMessage[]): string {
     const snippet = firstUser.content.replace(/\s+/g, " ").trim();
     return snippet.length > 40 ? `${snippet.slice(0, 40)}…` : snippet;
   }
-  return "Nueva conversación";
+  return "";
 }
 
 function genTempId(): string {
@@ -95,17 +95,29 @@ export function Chat() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   /* -------- Load sessions (callable for retry) -------- */
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
     setSessionsError(null);
     try {
-      const data = await request<ChatSession[] | { items: ChatSession[] }>({
+      const data = await request<
+        | ChatSession[]
+        | { items?: ChatSession[]; results?: ChatSession[] }
+      >({
         url: "/chat/sessions/",
         method: "GET",
       });
-      const list = Array.isArray(data) ? data : data.items ?? [];
+      const list = Array.isArray(data)
+        ? data
+        : data.items ?? data.results ?? [];
       setSessions(list);
     } catch (err) {
       setSessionsError(formatApiError(err));
@@ -125,12 +137,17 @@ export function Chat() {
       setMessagesError(null);
       setMessages([]);
       try {
-        const data = await request<ChatMessage[] | { items: ChatMessage[] }>({
+        const data = await request<
+          | ChatMessage[]
+          | { items?: ChatMessage[]; results?: ChatMessage[] }
+        >({
           url: `/chat/sessions/${id}/messages/`,
           method: "GET",
           silent: true,
         });
-        const list = Array.isArray(data) ? data : data.items ?? [];
+        const list = Array.isArray(data)
+          ? data
+          : data.items ?? data.results ?? [];
         setMessages(list);
       } catch (err) {
         const parsed = parseApiError(err);
@@ -298,6 +315,9 @@ export function Chat() {
       setSending(true);
       setPendingAssistant(true);
 
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
+
       const optimistic: ChatMessage = {
         id: genTempId(),
         session: targetId,
@@ -313,6 +333,7 @@ export function Chat() {
           method: "POST",
           data: { content: trimmed },
           silent: true,
+          signal: abortControllerRef.current.signal,
         });
 
         if ("user_message" in res && "assistant_message" in res) {
@@ -353,6 +374,9 @@ export function Chat() {
           }
         }
       } catch (err) {
+        if (abortControllerRef.current?.signal.aborted) {
+          return;
+        }
         setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
         const parsed = parseApiError(err);
         const friendly =
@@ -375,7 +399,7 @@ export function Chat() {
 
   return (
     <div className="h-full">
-      <div className="relative h-full min-h-[480px] w-full overflow-hidden bg-gradient-to-br from-surface via-surface to-surface-alt">
+      <div className="relative h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] w-full overflow-hidden bg-gradient-to-br from-surface via-surface to-surface-alt">
         {/* Backgrounds */}
         <div
           aria-hidden="true"
@@ -394,7 +418,7 @@ export function Chat() {
         <div className="relative z-10 flex h-full">
           {/* Sessions sidebar (desktop) */}
           <SessionsSidebar
-            className="hidden md:flex"
+            className="hidden lg:flex"
             sessions={sessions}
             loading={sessionsLoading}
             error={sessionsError}
@@ -417,13 +441,13 @@ export function Chat() {
             <div
               role="presentation"
               aria-hidden="true"
-              className="fixed inset-0 z-30 bg-black/60 md:hidden animate-fade-in"
+              className="fixed inset-0 z-30 bg-black/60 lg:hidden animate-fade-in"
               onClick={() => setDrawerOpen(false)}
             />
           )}
           <div
             className={cn(
-              "fixed inset-y-0 left-0 z-40 md:hidden",
+              "fixed inset-y-0 left-0 z-40 lg:hidden",
               "transition-transform duration-modal ease-modal",
               drawerOpen ? "translate-x-0" : "-translate-x-full",
             )}
@@ -460,6 +484,7 @@ export function Chat() {
               hasSession={!!activeSession}
               sessionId={activeSession?.id ?? null}
               onOpenDrawer={() => setDrawerOpen(true)}
+              onNewSession={handleNewSession}
               onCommitRename={handleRename}
               onDeleteSession={() =>
                 activeSession && setDeleteTarget(activeSession)
@@ -468,7 +493,7 @@ export function Chat() {
 
             <div
               ref={messagesScrollRef}
-              className="flex-1 overflow-y-auto px-md md:px-lg lg:px-xl py-md md:py-lg"
+              className="flex-1 overflow-y-auto overflow-x-hidden px-md md:px-lg lg:px-xl py-md md:py-lg"
             >
               <div className="mx-auto flex w-full max-w-[860px] flex-col gap-lg">
                 {!activeSession && !routeSessionId && <EmptyState />}
@@ -892,6 +917,7 @@ interface ChatHeaderProps {
   hasSession: boolean;
   sessionId: string | null;
   onOpenDrawer: () => void;
+  onNewSession: () => void;
   onCommitRename: (id: string, nextTitle: string) => void;
   onDeleteSession: () => void;
 }
@@ -901,6 +927,7 @@ function ChatHeader({
   hasSession,
   sessionId,
   onOpenDrawer,
+  onNewSession,
   onCommitRename,
   onDeleteSession,
 }: ChatHeaderProps) {
@@ -931,6 +958,7 @@ function ChatHeader({
   return (
     <header
       className={cn(
+        "shrink-0",
         "flex items-center justify-between gap-sm",
         "px-md md:px-lg lg:px-xl py-sm md:py-md",
         "border-b border-border/70",
@@ -943,12 +971,23 @@ function ChatHeader({
           onClick={onOpenDrawer}
           aria-label="Abrir lista de sesiones"
           className={cn(
-            "md:hidden size-10 inline-flex items-center justify-center rounded shrink-0",
-            "border border-border/70 bg-surface/60",
-            "text-foreground hover:bg-surface transition-colors duration-hover",
+            "lg:hidden size-10 inline-flex items-center justify-center shrink-0",
+            "text-foreground hover:bg-surface-alt transition-colors duration-hover",
           )}
         >
           <Menu className="size-6" />
+        </button>
+        <button
+          type="button"
+          onClick={onNewSession}
+          aria-label="Nueva conversación"
+          title="Nueva conversación"
+          className={cn(
+            "lg:hidden size-10 inline-flex items-center justify-center shrink-0",
+            "text-foreground hover:bg-surface-alt transition-colors duration-hover",
+          )}
+        >
+          <Plus className="size-6" />
         </button>
         {editing && hasSession ? (
           <input
@@ -969,7 +1008,7 @@ function ChatHeader({
             className={cn(
               "flex-1 min-w-0 h-9 rounded px-sm",
               "bg-surface/60 border border-primary/60",
-              "font-headline text-h4 text-foreground",
+              "font-headline text-body-sm text-foreground",
               "focus:outline-none focus:shadow-[0_0_0_3px_rgba(34,197,94,0.18)]",
             )}
           />
@@ -988,11 +1027,11 @@ function ChatHeader({
           >
             <h2
               className={cn(
-                "truncate font-headline text-h4 text-foreground",
+                "truncate font-headline text-body-sm text-foreground",
                 !title && "text-foreground-muted",
               )}
             >
-              {title ?? "Nueva conversación"}
+              {title}
             </h2>
           </button>
         )}
@@ -1089,13 +1128,13 @@ const MessageBubble = memo(function MessageBubble({ message }: MessageBubbleProp
 
       <div
         className={cn(
-          "max-w-[90vw] md:max-w-[78%] flex flex-col gap-xs",
+          "min-w-0 max-w-[85%] flex flex-col gap-xs",
           isUser ? "items-end" : "items-start",
         )}
       >
         <div
           className={cn(
-            "rounded px-md py-sm text-body",
+            "min-w-0 max-w-full overflow-hidden break-words rounded px-md py-sm text-body",
             isUser
               ? "bg-secondary text-secondary-foreground shadow-subtle"
               : "bg-surface-alt/80 border border-border text-foreground shadow-base backdrop-blur-sm",

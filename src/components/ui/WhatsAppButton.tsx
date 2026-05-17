@@ -1,4 +1,4 @@
-import { MessageCircle } from "lucide-react";
+import { FaWhatsapp } from "react-icons/fa";
 
 const WHATSAPP_URL =
   import.meta.env.VITE_WHATSAPP_URL ??
@@ -25,7 +25,7 @@ export function WhatsAppButton() {
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
       ].join(" ")}
     >
-      <MessageCircle size={32} strokeWidth={2.25} aria-hidden="true" />
+      <FaWhatsapp size={32} aria-hidden="true" />
     </a>
   );
 }

@@ -29,11 +29,16 @@ export function Home() {
     setLoading(true);
     setError(null);
     try {
-      const data = await request<ChatSession[] | { items: ChatSession[] }>({
+      const data = await request<
+        | ChatSession[]
+        | { items?: ChatSession[]; results?: ChatSession[] }
+      >({
         url: "/chat/sessions/",
         method: "GET",
       });
-      const list = Array.isArray(data) ? data : data.items ?? [];
+      const list = Array.isArray(data)
+        ? data
+        : data.items ?? data.results ?? [];
       setSessions(list);
     } catch (err) {
       setError(formatApiError(err));

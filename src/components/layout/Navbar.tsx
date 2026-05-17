@@ -4,8 +4,6 @@ import { ChevronDown, LogOut, Menu, ShieldHalf, User as UserIcon } from "lucide-
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { profileStore } from "@/services/profileStore";
-import { ProfileModal } from "./ProfileModal";
 
 interface NavbarProps {
   onToggleSidebar?: () => void;
@@ -17,17 +15,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
   const navigate = useNavigate();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [avatar, setAvatar] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!user?.email) {
-      setAvatar(null);
-      return;
-    }
-    setAvatar(profileStore.getAvatar(user.email));
-  }, [user?.email, profileOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -47,20 +35,14 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
 
   function handleLogout() {
     setMenuOpen(false);
-    setProfileOpen(false);
     logout();
     navigate("/login", { replace: true });
   }
 
-  function openProfile() {
-    setMenuOpen(false);
-    setProfileOpen(true);
-  }
-
-  const initial = (user?.email || "?").trim().charAt(0).toUpperCase();
+  const displayName = user?.name?.trim() || user?.email || "Account";
 
   return (
-    <header className="relative z-50 h-14 md:h-navbar w-full border-b border-border bg-surface">
+    <header className="sticky top-0 z-50 h-14 md:h-navbar w-full border-b border-border bg-surface">
       <div className="h-full flex items-center justify-between px-md md:px-lg lg:px-xl gap-md md:gap-lg">
         <div className="flex items-center gap-md">
           {isAuthenticated && onToggleSidebar && (
@@ -98,13 +80,13 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
               >
-                <Avatar avatar={avatar} initial={initial} size={32} />
+                <UserBadge />
                 <span className="hidden md:inline-flex items-baseline gap-xs max-w-[260px] truncate">
                   <span className="text-foreground-muted text-body-sm">
-                    Signed in as:
+                    Signed as:
                   </span>
                   <span className="truncate text-foreground">
-                    {user?.email ?? "Account"}
+                    {displayName}
                   </span>
                 </span>
                 <ChevronDown
@@ -125,27 +107,29 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
                   )}
                 >
                   <div className="flex items-center gap-sm px-md py-sm border-b border-border">
-                    <Avatar avatar={avatar} initial={initial} size={32} />
+                    <UserBadge />
                     <div className="min-w-0">
                       <p className="text-body-sm text-foreground-muted">
-                        Signed in as
+                        Signed as
                       </p>
                       <p className="text-body text-foreground truncate">
-                        {user?.email ?? "—"}
+                        {displayName}
                       </p>
                     </div>
                   </div>
-                  <MenuItem
-                    icon={UserIcon}
-                    label="Profile"
-                    onClick={openProfile}
-                  />
-                  <MenuItem
-                    icon={LogOut}
-                    label="Logout"
+                  <button
+                    type="button"
+                    role="menuitem"
                     onClick={handleLogout}
-                    danger
-                  />
+                    className={cn(
+                      "w-full flex items-center gap-sm px-md py-sm text-body text-left text-error",
+                      "transition-colors duration-hover ease-hover",
+                      "hover:bg-surface focus-visible:outline-none focus-visible:bg-surface",
+                    )}
+                  >
+                    <LogOut className="size-4" />
+                    <span>Logout</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -156,62 +140,22 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
           )}
         </div>
       </div>
-
-      {profileOpen && (
-        <ProfileModal onClose={() => setProfileOpen(false)} />
-      )}
     </header>
   );
 }
 
-interface AvatarProps {
-  avatar: string | null;
-  initial: string;
-  size: number;
-}
-
-function Avatar({ avatar, initial, size }: AvatarProps) {
+/* Same lucide `User` glyph the chat message bubbles use, for visual
+   consistency between the account menu and the chat avatars. */
+function UserBadge() {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full overflow-hidden",
-        "bg-primary/15 border border-primary/40",
-        "text-primary font-medium",
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-full",
+        "bg-primary/15 border border-primary/40 text-primary",
       )}
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.45) }}
       aria-hidden="true"
     >
-      {avatar ? (
-        <img src={avatar} alt="" className="size-full object-cover" />
-      ) : (
-        <span>{initial}</span>
-      )}
+      <UserIcon className="size-4" />
     </span>
-  );
-}
-
-interface MenuItemProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  onClick: () => void;
-  danger?: boolean;
-}
-
-function MenuItem({ icon: Icon, label, onClick, danger }: MenuItemProps) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className={cn(
-        "w-full flex items-center gap-sm px-md py-sm text-body text-left",
-        "transition-colors duration-hover ease-hover",
-        "hover:bg-surface focus-visible:outline-none focus-visible:bg-surface",
-        danger ? "text-error" : "text-foreground",
-      )}
-    >
-      <Icon className="size-4" />
-      <span>{label}</span>
-    </button>
   );
 }
