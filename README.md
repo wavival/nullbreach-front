@@ -135,6 +135,8 @@ npm run test:coverage     # writes coverage/ HTML report
 
 MSW intercepts `axios` at the network layer — `src/test/handlers.ts` is the default fixture, individual suites override via `server.use(...)`.
 
+The dev fallback base URL (`http://localhost:8000`) is used by both `src/services/api.ts` and `src/test/handlers.ts` — no `/api` prefix. Test overrides must use the same base (e.g. `http://localhost:8000/auth/login/`).
+
 ## Deploying to Netlify
 
 ### One-time setup
